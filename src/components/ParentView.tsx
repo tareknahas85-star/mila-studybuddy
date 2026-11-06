@@ -41,7 +41,7 @@ export default function ParentView({ settings, progress, onSave, onReset }: Prop
       </div>
 
       <label className="label" htmlFor="p-name">
-        اسم الطفل(ة)
+        اسم الطالب (الطالبة)
       </label>
       <input id="p-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} />
 

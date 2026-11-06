@@ -12,7 +12,7 @@ type Tab = 'learn' | 'photo' | 'parent'
 
 const TABS: Array<{ id: Tab; label: string; icon: string }> = [
   { id: 'learn', label: 'تعلّم', icon: '🎓' },
-  { id: 'photo', label: 'صوّري', icon: '📸' },
+  { id: 'photo', label: 'صورة', icon: '📸' },
   { id: 'parent', label: 'الأهل', icon: '👨‍👩‍👧' },
 ]
 
@@ -52,7 +52,7 @@ export default function App() {
   if (settings.childName === '' || settings.parentPin === '') {
     return (
       <div className="shell">
-        <Mila mood="idle" line="مرحبا! خلينا نجهّز دفترك سوا ✨" />
+        <Mila mood="idle" line="مرحبا! خلينا نجهّز الدفتر سوا ✨" />
         <Wizard initial={settings} onDone={applySettings} />
       </div>
     )
@@ -74,11 +74,11 @@ export default function App() {
         mood={mood}
         line={
           mood === 'think'
-            ? 'عم فكّر معك... خدي وقتك 💭'
+            ? 'عم فكّر معك... خذ وقتك 💭'
             : mood === 'laugh'
-              ? 'برافو! كتير حبيت شغلك 🎉'
+              ? 'برافو! عجبني شغلك 🎉'
               : mood === 'tired'
-                ? 'ولا يهمك، منجرب مرة تانية 💙'
+                ? 'ولا يهمك، منجرّب مرة تانية 💙'
                 : mood === 'proud'
                   ? 'خلصنا درس! نجمة إلك ⭐'
                   : undefined

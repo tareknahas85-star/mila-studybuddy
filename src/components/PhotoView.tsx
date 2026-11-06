@@ -23,7 +23,7 @@ export default function PhotoView({ settings, onMood }: { settings: Settings; on
     e.target.value = ''
     if (!file || !file.type.startsWith('image/')) return
     const dataUrl = await readAsDataUrl(file)
-    if (!dataUrl) return setError('ما قدرنا نقرأ الصورة، جرّبي صورة تانية.')
+    if (!dataUrl) return setError('ما قدرنا نقرأ الصورة، جرّب صورة تانية.')
     setImage(dataUrl)
     setResult(null)
     setError('')
@@ -52,17 +52,17 @@ export default function PhotoView({ settings, onMood }: { settings: Settings; on
 
   return (
     <div className="card">
-      <h2 className="title">📸 صوّري صفحة من الكتاب</h2>
+      <h2 className="title">📸 صور صفحة من الكتاب</h2>
       <p className="note">ميلا بتقرأ المسألة وبتشرحلك خطوة خطوة — بدون ما تعطيك الجواب جاهز.</p>
       <p className="note small">🔒 صورتك بتنقرأ لحظة التحليل بس، وما بتنحفظ على أي سيرفر.</p>
 
       <div className="actions">
         <label className="primary file">
-          <span>📷 افتحي الكاميرا</span>
+          <span>📷 افتح الكاميرا</span>
           <input type="file" accept="image/*" capture="environment" onChange={pick} hidden />
         </label>
         <label className="ghost file">
-          <span>🖼️ اختاري صورة</span>
+          <span>🖼️ من المعرض</span>
           <input type="file" accept="image/*" onChange={pick} hidden />
         </label>
       </div>

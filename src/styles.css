@@ -60,30 +60,42 @@ body {
   justify-content: flex-end;
 }
 
-.mila-face {
-  width: 74px;
-  height: 74px;
+.mila-avatar {
+  position: relative;
+  width: 78px;
+  height: 78px;
   border-radius: 50%;
-  border: 3px solid #fff;
-  box-shadow: 0 6px 16px rgba(120, 80, 40, 0.18);
-  display: flex;
-  flex-direction: column;
+  border: 4px solid #ffd9a0;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(120, 80, 40, 0.2);
+  overflow: visible;
+  flex: 0 0 auto;
+  transition: transform 0.25s ease, border-color 0.25s ease;
+}
+
+.mila-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 32%;
+  display: block;
+}
+
+.mila-badge {
+  position: absolute;
+  inset-inline-start: -6px;
+  bottom: -4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--line);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  flex: 0 0 auto;
-}
-
-.mila-eyes {
   font-size: 0.85rem;
-  letter-spacing: 2px;
-  color: #4a3221;
-}
-
-.mila-mouth {
-  font-size: 1.15rem;
-  line-height: 1;
-  color: #6b3f22;
+  box-shadow: 0 3px 8px rgba(120, 80, 40, 0.16);
 }
 
 .mila-bubble {

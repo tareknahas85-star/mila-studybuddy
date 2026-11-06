@@ -24,8 +24,8 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
 
   return (
     <form className="card wizard" onSubmit={submit} noValidate>
-      <h1 className="title">أهلاً! حضّري التطبيق 🛠️</h1>
-      <p className="note">هالشاشة لولي الأمر مرة واحدة بس. بعدها الطفل بيفتح على دفتره، وما بيقدر يغيّر شي.</p>
+      <h1 className="title">حضّر التطبيق 🛠️</h1>
+      <p className="note">هالشاشة لولي الأمر مرة واحدة بس. بعدها الطالب بيفتح على دفتره، وما بيقدر يغيّر شي.</p>
 
       <label className="label" htmlFor="pin">
         رقم ولي الأمر
@@ -41,7 +41,7 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       />
 
       <label className="label" htmlFor="name">
-        اسم الطفل(ة)
+        اسم الطالب (الطالبة)
       </label>
       <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="مثلاً: ليان" />
 
@@ -54,13 +54,13 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
         ))}
       </div>
 
-      <span className="label">الدفتر</span>
+      <span className="label">الجنس</span>
       <div className="chips">
-        <button type="button" className={`chip ${gender === 'f' ? 'on' : ''}`} onClick={() => setGender('f')}>
-          بنات 🌸
-        </button>
         <button type="button" className={`chip ${gender === 'm' ? 'on' : ''}`} onClick={() => setGender('m')}>
-          صبيان 🚀
+          طالب
+        </button>
+        <button type="button" className={`chip ${gender === 'f' ? 'on' : ''}`} onClick={() => setGender('f')}>
+          طالبة
         </button>
       </div>
 
@@ -77,7 +77,7 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       />
       <p className="note small">
         من <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer noopener">Google AI Studio</a> — مجاني.
-        المفتاح بيضل على هالجهاز بس، والطفل ما بيشوفه. بدونه الدروس الجاهزة والصوت بيشتغلوا عادي، بس قراءة الصور لأ.
+        المفتاح بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه الدروس الجاهزة بتشتغل عادي، بس قراءة الصور لأ.
       </p>
 
       {error && <p className="error" role="alert">{error}</p>}
