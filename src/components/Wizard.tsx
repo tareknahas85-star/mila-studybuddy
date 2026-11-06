@@ -43,7 +43,7 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       <label className="label" htmlFor="name">
         اسم الطالب (الطالبة)
       </label>
-      <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="مثلاً: ليان" />
+      <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="مثلاً: ليلي أو روي" />
 
       <span className="label">الصف</span>
       <div className="chips">
