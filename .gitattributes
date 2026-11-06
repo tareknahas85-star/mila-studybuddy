@@ -1,0 +1,4 @@
+# سكربتات الأنظمة لازم تنزل بـLF، وإلا gradlew بتفشل على GitHub Actions (Linux).
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
