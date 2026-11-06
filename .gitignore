@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+
+# مفاتيح وأسرار: ما بتطلع على GitHub أبدًا
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+android/local.properties
