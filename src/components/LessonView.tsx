@@ -3,11 +3,19 @@ import { LESSONS, type Lesson } from '../lib/lessons.ts'
 
 interface Props {
   childName: string
+  streak: number
+  lessonsDone: number
   onFinish: (stars: number) => void
 }
 
+const SUBJECT_ICON: Record<string, string> = {
+  'رياضيات': '🔢',
+  'لغة عربية': '📖',
+  'علوم': '🔬',
+}
+
 /** درس سقراطي: تلميحات تتصاعد، والجواب بيظهر بس بعد ما يجرّب الطفل. */
-export default function LessonView({ childName, onFinish }: Props) {
+export default function LessonView({ childName, streak, lessonsDone, onFinish }: Props) {
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [shown, setShown] = useState(0)
@@ -24,10 +32,20 @@ export default function LessonView({ childName, onFinish }: Props) {
     return (
       <div className="card">
         <h2 className="title">شو بندرس اليوم يا {childName}؟ 📚</h2>
+        <div className="pills">
+          <span className="pill">{streak > 0 ? `🔥 ${streak} أيام متتالية` : '🔥 ابدأ سلسلتك اليوم'}</span>
+          <span className="pill">🏅 {lessonsDone} دروس منجزة</span>
+        </div>
         <div className="list">
           {LESSONS.map((l) => (
             <button key={l.id} className="row" onClick={() => start(l)}>
-              <span className="row-title">{l.title}</span>
+              <span className="row-icon" aria-hidden="true">
+                {SUBJECT_ICON[l.subject] ?? '📚'}
+              </span>
+              <span className="row-main">
+                <span className="row-title">{l.title}</span>
+                <span className="row-sub">{l.steps.length === 1 ? 'سؤال واحد' : `${l.steps.length} أسئلة`}</span>
+              </span>
               <span className="badge">{l.subject}</span>
             </button>
           ))}
@@ -56,6 +74,9 @@ export default function LessonView({ childName, onFinish }: Props) {
         <h2 className="title">{lesson.title}</h2>
         <span className="badge">{lesson.subject}</span>
       </div>
+      <p className="row-sub">
+        السؤال {stepIndex + 1} من {lesson.steps.length}
+      </p>
 
       <p className="question">{step.question}</p>
 

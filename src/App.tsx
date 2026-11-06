@@ -6,7 +6,7 @@ import LessonView from './components/LessonView.tsx'
 import PhotoView from './components/PhotoView.tsx'
 import ParentView from './components/ParentView.tsx'
 import type { Mood, Progress, Settings } from './lib/store.ts'
-import { completeLesson, loadProgress, loadSettings, saveProgress, saveSettings } from './lib/store.ts'
+import { completeLesson, currentStreak, loadProgress, loadSettings, saveProgress, saveSettings } from './lib/store.ts'
 
 type Tab = 'learn' | 'photo' | 'parent'
 
@@ -86,7 +86,14 @@ export default function App() {
       />
 
       <main>
-        {tab === 'learn' && <LessonView childName={settings.childName} onFinish={finishLesson} />}
+        {tab === 'learn' && (
+          <LessonView
+            childName={settings.childName}
+            streak={currentStreak(progress)}
+            lessonsDone={progress.lessonsDone}
+            onFinish={finishLesson}
+          />
+        )}
         {tab === 'photo' && <PhotoView settings={settings} onMood={setMood} />}
         {tab === 'parent' &&
           (parentOpen ? (
