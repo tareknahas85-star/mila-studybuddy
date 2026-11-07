@@ -65,7 +65,7 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       </div>
 
       <label className="label" htmlFor="key">
-        مفتاح جيميني المجاني (اختياري)
+        مفتاح جيميني المجاني
       </label>
       <input
         id="key"
@@ -77,7 +77,7 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       />
       <p className="note small">
         من <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer noopener">Google AI Studio</a> — مجاني.
-        المفتاح بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه الدروس الجاهزة بتشتغل عادي، بس قراءة الصور لأ.
+        المفتاح بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
       </p>
 
       {error && <p className="error" role="alert">{error}</p>}

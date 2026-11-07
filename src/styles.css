@@ -572,6 +572,370 @@ body {
   margin: 0 auto;
 }
 
+/* ---------- الرئيسية: بحث + كتب ---------- */
+
+.hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.search {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.search .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-btn {
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 0 #b84c2c;
+}
+
+.chip.tiny {
+  font-size: 0.76rem;
+  padding: 7px 11px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chev {
+  color: var(--muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  flex: 0 0 auto;
+  padding-inline-start: 4px;
+}
+
+.row-thumb {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.ghost.slim {
+  display: inline-block;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  border-radius: 12px;
+}
+
+/* ---------- تبويبات مقسّمة ---------- */
+
+.seg {
+  display: flex;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 5px;
+}
+
+.seg-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 9px 4px;
+  border-radius: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.seg-btn.on {
+  background: var(--accent-soft);
+  color: #8a3b21;
+  font-weight: 700;
+}
+
+/* ---------- الكاميرا والمعرض ---------- */
+
+.shot-zone {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.shot-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 10px;
+  border: 1.5px dashed #e3c7a9;
+  border-radius: 16px;
+  background: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--ink);
+  text-align: center;
+}
+
+.shot-btn span {
+  font-size: 1.4rem;
+}
+
+.shot-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- رأس الدرس ---------- */
+
+.lesson-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.back {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink);
+  flex: 0 0 auto;
+  padding-bottom: 5px;
+}
+
+.lesson-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lesson-title .title {
+  font-size: 1.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+a.primary {
+  display: block;
+}
+
+/* ---------- الأسئلة ---------- */
+
+.quiz {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quiz-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  text-align: start;
+  font: inherit;
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.option.right {
+  background: #eef9ee;
+  border-color: #8bc98d;
+  font-weight: 700;
+}
+
+.option.wrong {
+  background: #fdeceb;
+  border-color: #e6a8a3;
+}
+
+/* ---------- الأرشيف ---------- */
+
+.arch {
+  position: relative;
+  display: flex;
+}
+
+.arch-row {
+  flex: 1;
+  min-width: 0;
+  padding-inline-end: 46px;
+}
+
+.icon-btn {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+/* ---------- ذاكرة الطفل ---------- */
+
+.style-card {
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.style-big {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.bar-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.bar {
+  height: 9px;
+  background: #f0e5d5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.bar-fill.good {
+  background: #4c9a52;
+}
+
+.bar-fill.mid {
+  background: #e0a63b;
+}
+
+.bar-fill.low {
+  background: #d1604f;
+}
+
+.bar-fill.none {
+  background: #d9cbbb;
+}
+
+.signal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tag {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+  color: var(--muted);
+}
+
+.insight {
+  margin: 0;
+  background: #f3f8ff;
+  border: 1px solid #d5e4f5;
+  border-radius: 16px;
+  padding: 13px;
+  line-height: 1.8;
+  font-size: 0.9rem;
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 88px;
+  line-height: 1.7;
+}
+
+.celebrate {
+  text-align: center;
+}
+
+.celebrate .title {
+  font-size: 1.4rem;
+}
+
 @media (max-width: 380px) {
   .title {
     font-size: 1.15rem;
