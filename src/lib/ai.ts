@@ -10,7 +10,7 @@ const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta'
  * موديلات 2.5 صارت ترجّع 404 لمشاريع جديدة، والمجاني الحالي هو 3.x Flash.
  * فبنجرّب بالترتيب، وأول موديل بيشتغل بينحفظ للجلسة كلها.
  */
-const MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash']
+const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash']
 let modelIdx = 0
 
 export interface LessonDraft {
@@ -89,8 +89,9 @@ function explain(f: ApiFailure): string {
   const code = f.code !== '' ? f.code : `HTTP ${f.status}`
   if (f.status === 400) {
     if (msg.includes('api key') || msg.includes('api_key') || msg.includes('credential')) return BAD_KEY
-    if (msg.includes('country') || msg.includes('not available')) return COUNTRY
-    return `الطلب ما انقبل من جوجل. (${code})`
+    if (msg.includes('country') || msg.includes('location') || msg.includes('not available')) return COUNTRY
+    const detail = f.message.length > 120 ? `${f.message.slice(0, 120)}…` : f.message
+    return `جوجل ما قبلت الطلب (${code}).${detail ? ` ${detail}` : ''}`
   }
   if (f.status === 401) return BAD_KEY
   if (f.status === 403) return RESTRICTED
@@ -133,6 +134,7 @@ async function callJson(apiKey: string, parts: unknown[], temperature: number): 
   const key = apiKey.trim()
   if (key === '') return { ok: false, error: NO_KEY }
 
+  let last: ApiFailure | null = null
   for (let attempt = 0; attempt < MODELS.length; attempt += 1) {
     const idx = (modelIdx + attempt) % MODELS.length
     const sent = await postGenerate(key, MODELS[idx], parts, temperature)
@@ -142,11 +144,13 @@ async function callJson(apiKey: string, parts: unknown[], temperature: number): 
       return parseJson(sent.res)
     }
     const f = await failure(sent.res)
-    // موديل مسكّر؟ جرّب اللي بعده. أي خطأ تاني بيرجع للمستخدم فورًا.
-    if (f.status === 404) continue
+    last = f
+    // موديل مسكّر، تحت ضغط، أو خلصت حصته؟ جرّب اللي بعده — كل موديل إله حصة مستقلة.
+    // خطأ مفتاح أو طلب غلط ما بينفع معه موديل تاني، فبيرجع فورًا.
+    if (f.status === 404 || f.status === 429 || f.status >= 500) continue
     return { ok: false, error: explain(f) }
   }
-  return { ok: false, error: NO_MODEL }
+  return { ok: false, error: last ? explain(last) : NO_MODEL }
 }
 
 async function parseJson(res: Response): Promise<Result<Record<string, unknown>>> {
@@ -165,12 +169,24 @@ async function parseJson(res: Response): Promise<Result<Record<string, unknown>>
     .replace(/^```(?:json)?/i, '')
     .replace(/```$/, '')
     .trim()
+  // ساعات الموديل بيحط جملة قبل الـJSON أو بعدها، أو بيلفّه بكود بلوك بالنص — فمنقتطع الأقواس.
+  let parsed = asObject(cleaned)
+  if (!parsed) {
+    const start = cleaned.indexOf('{')
+    const end = cleaned.lastIndexOf('}')
+    if (start !== -1 && end > start) parsed = asObject(cleaned.slice(start, end + 1))
+  }
+  if (!parsed) return { ok: false, error: 'ما فهمنا الرد. جرّب صيغة أوضح.' }
+  return { ok: true, data: parsed }
+}
+
+function asObject(text: string): Record<string, unknown> | null {
   try {
-    const parsed: unknown = JSON.parse(cleaned)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ok: false, error: 'ما فهمنا الرد.' }
-    return { ok: true, data: parsed as Record<string, unknown> }
+    const parsed: unknown = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    return parsed as Record<string, unknown>
   } catch {
-    return { ok: false, error: 'ما فهمنا الرد. جرّب صيغة أوضح.' }
+    return null
   }
 }
 
@@ -202,13 +218,22 @@ export async function checkKey(apiKey: string): Promise<Result<string>> {
     return { ok: false, error: 'المفتاح مقبول بس ما في موديل مجاني متاح لحسابك. جرّب مفتاح جديد من AI Studio.' }
   }
 
-  const at = MODELS.indexOf(model)
-  if (at >= 0) modelIdx = at
-
-  const test = await postGenerate(key, model, [{ text: 'رجّع {"ok":true} وبس.' }], 0)
-  if (!test.ok) return { ok: false, error: test.error }
-  if (!test.res.ok) return { ok: false, error: explain(await failure(test.res)) }
-  return { ok: true, data: model }
+  const candidates = MODELS.filter((m) => usable.has(m))
+  let lastError = ''
+  for (const candidate of candidates.length > 0 ? candidates : [model]) {
+    const test = await postGenerate(key, candidate, [{ text: 'رجّع {"ok":true} وبس.' }], 0)
+    if (!test.ok) return { ok: false, error: test.error }
+    if (test.res.ok) {
+      const at = MODELS.indexOf(candidate)
+      if (at >= 0) modelIdx = at
+      return { ok: true, data: candidate }
+    }
+    const f = await failure(test.res)
+    lastError = explain(f)
+    if (f.status === 404 || f.status === 429 || f.status >= 500) continue
+    return { ok: false, error: lastError }
+  }
+  return { ok: false, error: lastError || NO_MODEL }
 }
 
 function str(value: unknown, fallback = ''): string {

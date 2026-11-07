@@ -36,7 +36,7 @@
 | التنسيق | CSS عادي بملف واحد (`src/styles.css`) — بلا Tailwind |
 | التغليف أندرويد | Capacitor 8 (Android project متعقّب بالريبو) |
 | البناء الآلي | GitHub Actions (job للويب + job للـAPK) |
-| الذكاء الاصطناعي | Gemini API مباشرة من الجهاز: `gemini-flash-latest` (وبعده `gemini-3.8-flash`، `gemini-3.5-flash-lite`، `gemini-2.5-flash`) |
+| الذكاء الاصطناعي | Gemini API مباشرة من الجهاز: `gemini-3.6-flash` (وبعده `gemini-3.5-flash-lite`، `gemini-flash-latest`، `gemini-3.8-flash`، `gemini-2.5-flash`) |
 | التخزين | `localStorage` للنصوص والإعدادات + `IndexedDB` لصور الدروس |
 
 بيئة البناء: Node 22 في CI، JDK 21، Android SDK 36. محليًا: `npm run dev | build | typecheck`.
@@ -137,7 +137,7 @@ mila/
 - الطالب بيختار صورة (كاميرا أو معرض) → `prepareImage()` بتصغّرها لـ1400px وJPEG 0.72، وبتنحفظ بـIndexedDB، وبتنرسل كـbase64 لجيميني لحظة التحليل.
 - `analyzePage()` بـ`lib/ai.ts` بتبعت `POST` لـ:
   `https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent`
-  (الموديل من قائمة `MODELS` بـ`lib/ai.ts`، وأول موديل يشتغل بينحفظ للجلسة؛ أي 404 بيجرّب اللي بعده)
+  (الموديل من قائمة `MODELS` بـ`lib/ai.ts`، وأول موديل يشتغل بينحفظ للجلسة؛ أي 404 أو 429 أو 5xx بيجرّب اللي بعده)
   مع هيدر `x-goog-api-key: <مفتاح ولي الأمر>` و`Content-Type: application/json`.
 - جسم الطلب: `contents[0].parts = [ {text: prompt}, {inlineData: {mimeType, data}} ]` + `generationConfig: { responseMimeType: "application/json", temperature: 0.4 }`.
 - البرومت بيطلب من ميلا: ما تعطي الجواب جاهز، لمّحي خطوة خطوة، وتخاطب الطالب بصيغة محايدة، وترجّع **JSON فقط**:
