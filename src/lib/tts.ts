@@ -13,11 +13,22 @@ const STYLE_VERSION = 1
 const STYLE =
   'تتكلم باللهجة السورية الشامية الدارجة، بصوت دافئ حنون ومرح، كأنها أخت كبيرة عم تحكي لطفلها بحماس هادي، واضحة وبطيئة شوي، مع وقفات قصيرة بين الجمل'
 
-export const VOICES: Array<{ id: string; label: string }> = [
-  { id: 'Sulafat', label: 'دافية وحنونة' },
-  { id: 'Achernar', label: 'ناعمة وهادية' },
-  { id: 'Leda', label: 'شابة ومرحة' },
-  { id: 'Aoede', label: 'خفيفة وحيوية' },
+export interface VoiceOption {
+  id: string
+  label: string
+  /** صوت بنت ولا صبي — الأهل بيختاروا اللي بيناسب الطفل. */
+  group: 'بنت' | 'صبي'
+}
+
+export const VOICES: VoiceOption[] = [
+  { id: 'Sulafat', label: 'دافية وحنونة', group: 'بنت' },
+  { id: 'Achernar', label: 'ناعمة وهادية', group: 'بنت' },
+  { id: 'Leda', label: 'شابة ومرحة', group: 'بنت' },
+  { id: 'Aoede', label: 'خفيفة وحيوية', group: 'بنت' },
+  { id: 'Puck', label: 'مرح ومتحمس', group: 'صبي' },
+  { id: 'Achird', label: 'ودود وهادي', group: 'صبي' },
+  { id: 'Fenrir', label: 'حيوي ومشوّق', group: 'صبي' },
+  { id: 'Umbriel', label: 'هادي وطيب', group: 'صبي' },
 ]
 
 export const DEFAULT_VOICE = 'Sulafat'

@@ -208,10 +208,14 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
               صوت ميلا 🔊
             </label>
             <select id="p-voice" className="input" value={voice} onChange={(e) => setVoice(e.target.value)}>
-              {VOICES.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.label}
-                </option>
+              {(['بنت', 'صبي'] as const).map((group) => (
+                <optgroup key={group} label={group === 'بنت' ? 'أصوات بنات 👧' : 'أصوات صبيان 👦'}>
+                  {VOICES.filter((v) => v.group === group).map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <button className="ghost" type="button" onClick={sampleVoice} disabled={key.trim() === ''}>
