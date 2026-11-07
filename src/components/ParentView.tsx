@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Memory, Progress, Settings } from '../lib/store.ts'
 import { currentStreak, learningStyle, subjectReads } from '../lib/store.ts'
-import { learningInsight } from '../lib/ai.ts'
+import { checkKey, learningInsight } from '../lib/ai.ts'
 import { prettyDate } from '../lib/img.ts'
 
 interface Props {
@@ -32,6 +32,9 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   const [interest, setInterest] = useState('')
   const [insightBusy, setInsightBusy] = useState(false)
   const [insightError, setInsightError] = useState('')
+  const [checkBusy, setCheckBusy] = useState(false)
+  const [checkMsg, setCheckMsg] = useState('')
+  const [checkError, setCheckError] = useState('')
 
   const flash = (msg: string) => {
     setSaved(msg)
@@ -61,6 +64,20 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   const saveNotes = () => {
     onMemory({ ...memory, notes: notes.trim().slice(0, 400) })
     flash('انحفظت الملاحظة ✅')
+  }
+
+  const testKey = async () => {
+    if (checkBusy) return
+    setCheckBusy(true)
+    setCheckMsg('')
+    setCheckError('')
+    const res = await checkKey(key)
+    setCheckBusy(false)
+    if (!res.ok) {
+      setCheckError(res.error)
+      return
+    }
+    setCheckMsg(`المفتاح شغّال ✅ — ميلا عم تستعمل موديل ${res.data}`)
   }
 
   const generateInsight = async () => {
@@ -143,6 +160,15 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             <p className="note small">
               من Google AI Studio — مجاني. بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
             </p>
+            <button className="ghost" type="button" onClick={testKey} disabled={checkBusy || key.trim() === ''}>
+              {checkBusy ? 'عم نفحص… ⏳' : 'اختبر المفتاح 🔍'}
+            </button>
+            {checkMsg && <p className="ok">{checkMsg}</p>}
+            {checkError && (
+              <p className="error" role="alert">
+                {checkError}
+              </p>
+            )}
 
             {saved && <p className="ok">{saved}</p>}
             <button className="primary" type="button" onClick={saveSettings}>

@@ -3,8 +3,15 @@
 import type { QuizItem, Settings, Memory } from './store.ts'
 import { learningStyle, memoryBrief, subjectReads } from './store.ts'
 
-const MODEL = 'gemini-2.5-flash'
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
+const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta'
+
+/**
+ * أسماء الموديلات المجانية عند جوجل بتتغيّر كل فترة:
+ * موديلات 2.5 صارت ترجّع 404 لمشاريع جديدة، والمجاني الحالي هو 3.x Flash.
+ * فبنجرّب بالترتيب، وأول موديل بيشتغل بينحفظ للجلسة كلها.
+ */
+const MODELS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash']
+let modelIdx = 0
 
 export interface LessonDraft {
   title: string
@@ -25,11 +32,15 @@ export interface PageResult {
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
 const NO_KEY = 'ما في مفتاح محفوظ. ولي الأمر بيحطه من قسم الأهل ← نظرة عامة.'
-const BAD_KEY = 'المفتاح غير صالح أو منتهي. ولي الأمر بيحدّثه من قسم الأهل.'
+const BAD_KEY = 'المفتاح ما انقبل. انسخه كامل من Google AI Studio واحفظه من قسم الأهل.'
+const RESTRICTED = 'المفتاح موجود بس مو مسموح له يستعمل Gemini API. جرّب مفتاح جديد من مشروع تاني.'
+const COUNTRY = 'النسخة المجانية من جيميني مو متاحة لبلد/مشروع هالمفتاح. جرّب مفتاح من مشروع جديد.'
 const NO_NET = 'ما في اتصال بالإنترنت. جرّب كمان شوي.'
 const TIMEOUT = 'ميلا تأخّرت شوي بالتفكير. جرّب مرة تانية.'
 const BUSY = 'ميلا مشغولة شوي هلق. جرّب كمان مرة.'
+const NO_MODEL = 'موديلات جيميني المجانية تغيّرت وما لقينا موديل شغّال. نزّل آخر نسخة من التطبيق.'
 const LOW_QUOTA = 'خلص عدد الطلبات المسموح اليوم. جرّب بكرا 🌙'
+const RATE_LIMIT = 'طلبات كتير بوقت قصير. استنّى دقيقة وجرّب.'
 
 function persona(settings: Pick<Settings, 'childName' | 'grade'>, memory: Memory): string {
   const brief = memoryBrief(memory)
@@ -56,15 +67,52 @@ const DRAFT_SHAPE =
   '"quiz":[{"q":"سؤال بالخيارات","options":["خيار 1","خيار 2","خيار 3"],"answer":0,"why":"ليش هاد الجواب صح"}],' +
   '"videoQuery":"عبارة بحث قصيرة ليوتيوب"}'
 
-async function callJson(apiKey: string, parts: unknown[], temperature: number): Promise<Result<Record<string, unknown>>> {
-  const key = apiKey.trim()
-  if (key === '') return { ok: false, error: NO_KEY }
+interface ApiFailure {
+  status: number
+  code: string
+  message: string
+}
 
+async function failure(res: Response): Promise<ApiFailure> {
+  const body: unknown = await res.json().catch(() => null)
+  const err = (body as { error?: { status?: string; message?: string } } | null)?.error
+  return {
+    status: res.status,
+    code: typeof err?.status === 'string' ? err.status : '',
+    message: typeof err?.message === 'string' ? err.message : '',
+  }
+}
+
+/** بيحوّل رد جوجل لرسالة عربية مفهومة، ومعها كود الخطأ حتى ينعرف السبب. */
+function explain(f: ApiFailure): string {
+  const msg = f.message.toLowerCase()
+  const code = f.code !== '' ? f.code : `HTTP ${f.status}`
+  if (f.status === 400) {
+    if (msg.includes('api key') || msg.includes('api_key') || msg.includes('credential')) return BAD_KEY
+    if (msg.includes('country') || msg.includes('not available')) return COUNTRY
+    return `الطلب ما انقبل من جوجل. (${code})`
+  }
+  if (f.status === 401) return BAD_KEY
+  if (f.status === 403) return RESTRICTED
+  if (f.status === 404) return NO_MODEL
+  if (f.status === 429) {
+    if (msg.includes('per day') || msg.includes('daily') || msg.includes('perday')) return LOW_QUOTA
+    return RATE_LIMIT
+  }
+  if (f.status >= 500) return `${BUSY} (كود ${f.status})`
+  return `${BUSY} (كود ${f.status})`
+}
+
+async function postGenerate(
+  key: string,
+  model: string,
+  parts: unknown[],
+  temperature: number,
+): Promise<{ ok: true; res: Response } | { ok: false; error: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 60000)
-  let res: Response
   try {
-    res = await fetch(ENDPOINT, {
+    const res = await fetch(`${API_ROOT}/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
@@ -73,21 +121,43 @@ async function callJson(apiKey: string, parts: unknown[], temperature: number): 
       }),
       signal: controller.signal,
     })
+    return { ok: true, res }
   } catch {
-    clearTimeout(timer)
     return { ok: false, error: controller.signal.aborted ? TIMEOUT : NO_NET }
+  } finally {
+    clearTimeout(timer)
   }
-  clearTimeout(timer)
+}
 
-  if (res.status === 400 || res.status === 401 || res.status === 403) return { ok: false, error: BAD_KEY }
-  if (res.status === 429) return { ok: false, error: LOW_QUOTA }
-  if (!res.ok) return { ok: false, error: BUSY }
+async function callJson(apiKey: string, parts: unknown[], temperature: number): Promise<Result<Record<string, unknown>>> {
+  const key = apiKey.trim()
+  if (key === '') return { ok: false, error: NO_KEY }
 
+  for (let attempt = 0; attempt < MODELS.length; attempt += 1) {
+    const idx = (modelIdx + attempt) % MODELS.length
+    const sent = await postGenerate(key, MODELS[idx], parts, temperature)
+    if (!sent.ok) return { ok: false, error: sent.error }
+    if (sent.res.ok) {
+      modelIdx = idx
+      return parseJson(sent.res)
+    }
+    const f = await failure(sent.res)
+    // موديل مسكّر؟ جرّب اللي بعده. أي خطأ تاني بيرجع للمستخدم فورًا.
+    if (f.status === 404) continue
+    return { ok: false, error: explain(f) }
+  }
+  return { ok: false, error: NO_MODEL }
+}
+
+async function parseJson(res: Response): Promise<Result<Record<string, unknown>>> {
   const raw: unknown = await res.json().catch(() => null)
   const responseParts = (
-    raw as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> } | null
+    raw as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }> } | null
   )?.candidates?.[0]?.content?.parts
-  const text = Array.isArray(responseParts) ? responseParts.map((p) => p.text ?? '').join('') : ''
+  const all = Array.isArray(responseParts) ? responseParts : []
+  // أجزاء "التفكير" مو جزء من الجواب، فما منخلطها مع الـJSON.
+  const answer = all.filter((p) => p.thought !== true).map((p) => p.text ?? '').join('')
+  const text = answer.trim() !== '' ? answer : all.map((p) => p.text ?? '').join('')
   if (text.trim() === '') return { ok: false, error: 'ما فهمنا الرد. جرّب مرة تانية.' }
 
   const cleaned = text
@@ -102,6 +172,43 @@ async function callJson(apiKey: string, parts: unknown[], temperature: number): 
   } catch {
     return { ok: false, error: 'ما فهمنا الرد. جرّب صيغة أوضح.' }
   }
+}
+
+/**
+ * فحص مفتاح ولي الأمر: بيتأكد إن المفتاح مقبول، إن في موديل مجاني متاح،
+ * وإن التوليد بيشتغل فعلًا — وبيرجّع اسم الموديل الشغّال.
+ */
+export async function checkKey(apiKey: string): Promise<Result<string>> {
+  const key = apiKey.trim()
+  if (key === '') return { ok: false, error: NO_KEY }
+
+  let listed: Response
+  try {
+    listed = await fetch(`${API_ROOT}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } })
+  } catch {
+    return { ok: false, error: NO_NET }
+  }
+  if (!listed.ok) return { ok: false, error: explain(await failure(listed)) }
+
+  const raw: unknown = await listed.json().catch(() => null)
+  const models = (raw as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }> } | null)?.models ?? []
+  const usable = new Set(
+    models
+      .filter((m) => (m.supportedGenerationMethods ?? []).includes('generateContent'))
+      .map((m) => (m.name ?? '').replace(/^models\//, '')),
+  )
+  const model = MODELS.find((m) => usable.has(m)) ?? [...usable][0] ?? ''
+  if (model === '') {
+    return { ok: false, error: 'المفتاح مقبول بس ما في موديل مجاني متاح لحسابك. جرّب مفتاح جديد من AI Studio.' }
+  }
+
+  const at = MODELS.indexOf(model)
+  if (at >= 0) modelIdx = at
+
+  const test = await postGenerate(key, model, [{ text: 'رجّع {"ok":true} وبس.' }], 0)
+  if (!test.ok) return { ok: false, error: test.error }
+  if (!test.res.ok) return { ok: false, error: explain(await failure(test.res)) }
+  return { ok: true, data: model }
 }
 
 function str(value: unknown, fallback = ''): string {
