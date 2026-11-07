@@ -3,6 +3,7 @@ import type { Memory, Progress, Settings } from '../lib/store.ts'
 import { currentStreak, learningStyle, subjectReads } from '../lib/store.ts'
 import { checkKey, learningInsight } from '../lib/ai.ts'
 import { prettyDate } from '../lib/img.ts'
+import { DEFAULT_VOICE, VOICE_SAMPLE, VOICES, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
 
 interface Props {
   settings: Settings
@@ -35,6 +36,9 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   const [checkBusy, setCheckBusy] = useState(false)
   const [checkMsg, setCheckMsg] = useState('')
   const [checkError, setCheckError] = useState('')
+  const [voice, setVoice] = useState(settings.voice || DEFAULT_VOICE)
+  const [sampleBusy, setSampleBusy] = useState(false)
+  const [sampleMsg, setSampleMsg] = useState('')
 
   const flash = (msg: string) => {
     setSaved(msg)
@@ -42,8 +46,38 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   }
 
   const saveSettings = () => {
-    onSave({ ...settings, childName: name.trim() || settings.childName, geminiKey: key.trim() })
+    onSave({ ...settings, childName: name.trim() || settings.childName, geminiKey: key.trim(), voice })
     flash('انحفظ ✅')
+  }
+
+  const sampleVoice = () => {
+    if (sampleBusy) {
+      stopNatural()
+      setSampleBusy(false)
+      setSampleMsg('')
+      return
+    }
+    if (key.trim() === '') {
+      setSampleMsg('حطّ مفتاح جيميني أول شي، وبعدها جرّب الصوت 🔑')
+      return
+    }
+    primeVoice()
+    setSampleBusy(true)
+    setSampleMsg('عم نجهّز صوت ميلا… أول مرة بتاخد كام ثانية ⏳')
+    speakNatural(
+      { text: VOICE_SAMPLE, apiKey: key.trim(), voice },
+      {
+        onStart: () => setSampleMsg('هي ميلا عم تحكي 🎧'),
+        onEnd: () => {
+          setSampleBusy(false)
+          setSampleMsg('')
+        },
+        onError: () => {
+          setSampleBusy(false)
+          setSampleMsg('ما قدرنا نجيب الصوت — جرّب كمان مرة أو تأكد من المفتاح والنت.')
+        },
+      },
+    )
   }
 
   const addInterest = () => {
@@ -169,6 +203,24 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
                 {checkError}
               </p>
             )}
+
+            <label className="label" htmlFor="p-voice">
+              صوت ميلا 🔊
+            </label>
+            <select id="p-voice" className="input" value={voice} onChange={(e) => setVoice(e.target.value)}>
+              {VOICES.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+            <button className="ghost" type="button" onClick={sampleVoice} disabled={key.trim() === ''}>
+              {sampleBusy ? 'وقّف التجربة ⏸️' : 'اسمع نموذج 🎧'}
+            </button>
+            {sampleMsg && <p className={sampleBusy ? 'note small' : 'ok'}>{sampleMsg}</p>}
+            <p className="note small">
+              الصوت الطبيعي من جيميني بلهجة شامية دافية — اختار اللي بيعجبك وبيصير صوت ميلا بكل الدروس.
+            </p>
 
             {saved && <p className="ok">{saved}</p>}
             <button className="primary" type="button" onClick={saveSettings}>

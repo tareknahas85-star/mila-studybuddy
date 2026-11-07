@@ -19,7 +19,7 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
     if (pin.length < 4) return setError('رقم ولي الأمر لازم يكون ٤ أرقام على الأقل.')
     if (name.trim().length < 2) return setError('اكتب اسم الطفل (حرفين على الأقل).')
     setError('')
-    onDone({ childName: name.trim(), grade, gender, parentPin: pin, geminiKey: key.trim() })
+    onDone({ childName: name.trim(), grade, gender, parentPin: pin, geminiKey: key.trim(), voice: initial.voice })
   }
 
   return (

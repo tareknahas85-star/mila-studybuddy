@@ -192,6 +192,8 @@ export default function App() {
             onFinish={finishLesson}
             onSignal={signal}
             onMood={setMood}
+            apiKey={settings.geminiKey}
+            voice={settings.voice || 'Sulafat'}
           />
         ) : activeBook ? (
           <BookView

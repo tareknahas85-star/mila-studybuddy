@@ -11,6 +11,8 @@ export interface Settings {
   parentPin: string
   /** مفتاح جيميني المجاني: ولي الأمر بيحطه مرة واحدة، وبيضل على الجهاز. */
   geminiKey: string
+  /** صوت ميلا الطبيعي (Gemini TTS) — اسم الصوت من مكتبة جوجل. */
+  voice: string
 }
 
 export interface Progress {
@@ -87,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gender: 'f',
   parentPin: '',
   geminiKey: '',
+  voice: 'Sulafat',
 }
 
 export const DEFAULT_MEMORY: Memory = {

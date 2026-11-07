@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Lesson, Mood, SignalKind } from '../lib/store.ts'
 import { prettyDate } from '../lib/img.ts'
 import { speak, speechReady, stopSpeaking } from '../lib/speech.ts'
+import { naturalReady, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
 import Shot from './Shot.tsx'
 
 type Mode = 'text' | 'voice' | 'video'
@@ -12,12 +13,17 @@ interface Props {
   onFinish: (lessonId: string, right: number, total: number) => void
   onSignal: (kind: SignalKind) => void
   onMood: (m: Mood) => void
+  /** مفتاح جيميني (صوت طبيعي) — فاضي يعني صوت الجهاز. */
+  apiKey: string
+  /** اسم صوت ميلا من مكتبة جوجل. */
+  voice: string
 }
 
-/** الدرس: شرح مكتوب، صوت شامي من الجهاز، فيديو، تلميحات، وبعدها أسئلة خيارات. */
-export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood }: Props) {
+/** الدرس: شرح مكتوب، صوت ميلا الطبيعي بالشامي، فيديو، تلميحات، وبعدها أسئلة خيارات. */
+export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood, apiKey, voice }: Props) {
   const [mode, setMode] = useState<Mode>('text')
   const [playing, setPlaying] = useState(false)
+  const [preparing, setPreparing] = useState(false)
   const [revealed, setRevealed] = useState(0)
   const [showPage, setShowPage] = useState(false)
   const [index, setIndex] = useState(0)
@@ -30,23 +36,62 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
     onSignal('text')
   }, [onSignal])
 
-  useEffect(() => () => stopSpeaking(), [])
+  useEffect(
+    () => () => {
+      stopSpeaking()
+      stopNatural()
+    },
+    [],
+  )
 
   const item = lesson.quiz[index]
   const caseTotal = lesson.quiz.length
 
   const speakLesson = () => {
     if (playing) {
+      stopNatural()
       stopSpeaking()
       setPlaying(false)
+      setPreparing(false)
       return
     }
-    if (!speechReady()) return
     const text = [lesson.summary, ...lesson.steps].filter((p) => p !== '').join('. ')
     if (text.trim() === '') return
+    if (!naturalReady(apiKey) && !speechReady()) return
     setPlaying(true)
     onSignal('voice')
     onMood('laugh')
+
+    // الصوت الطبيعي من جيميني، وإذا ما زبط منرجّع لصوت الجهاز.
+    if (naturalReady(apiKey)) {
+      setPreparing(true)
+      primeVoice()
+      let fellBack = false
+      const fallback = (): void => {
+        if (fellBack) return
+        fellBack = true
+        setPreparing(false)
+        if (!speechReady()) {
+          setPlaying(false)
+          return
+        }
+        speak(text, () => setPlaying(false))
+      }
+      speakNatural(
+        { text, apiKey, voice },
+        {
+          onStart: () => setPreparing(false),
+          onEnd: () => {
+            setPlaying(false)
+            setPreparing(false)
+          },
+          onError: fallback,
+        },
+      )
+      return
+    }
+
+    setPreparing(false)
     speak(text, () => setPlaying(false))
   }
 
@@ -175,13 +220,20 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
 
         {mode === 'voice' && (
           <div className="voice">
-            <button className="primary" type="button" onClick={speakLesson} disabled={!speechReady()}>
-              {playing ? '⏸️ وقّف' : '▶️ اسمع الشرح'}
+            <button
+              className="primary"
+              type="button"
+              onClick={speakLesson}
+              disabled={!naturalReady(apiKey) && !speechReady()}
+            >
+              {playing ? (preparing ? '⏳ ميلا عم تحضّر صوتها…' : '⏸️ وقّف') : '▶️ اسمع الشرح'}
             </button>
             <p className="note small">
-              {speechReady()
-                ? 'ميلا بتحكي بالعربي الشامي من صوت الجهاز — حنونة ومرحة، ومجانية.'
-                : 'جهازك ما فيه قارئ صوتي. جرّب تسمع من التلفون، أو اقرا الشرح بالكتابة.'}
+              {naturalReady(apiKey)
+                ? 'ميلا بتحكي بصوتها الطبيعي باللهجة الشامية. أول مرة بتاخد كام ثانية لتجهّز الصوت، وبعدها بينحفظ على الجهاز وبيشتغل بلا نت.'
+                : speechReady()
+                  ? 'ميلا بتحكي بصوت التلفون. ضيف مفتاح جيميني بقسم الأهل لتسمع صوتها الطبيعي.'
+                  : 'جهازك ما فيه قارئ صوتي. ضيف مفتاح جيميني بقسم الأهل لتسمع صوت ميلا الطبيعي.'}
             </p>
             <p className="note">{lesson.summary}</p>
           </div>
