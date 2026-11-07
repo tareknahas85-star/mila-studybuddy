@@ -4,7 +4,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // بلا سيرفر، فالتطبيق بيفتح ويشتغل أوفلاين.
 const config: CapacitorConfig = {
   appId: 'com.studybuddy.mila',
-  appName: 'ميلا',
+  appName: 'StudyBuddy',
   webDir: 'dist',
   android: {
     allowMixedContent: false,

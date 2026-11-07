@@ -80,6 +80,12 @@ body {
   flex: 0 0 auto;
 }
 
+/* ---------- StudyBuddy ---------- */
+.brand {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
 /* ---------- ميلا ---------- */
 
 .mila {

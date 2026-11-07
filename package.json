@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "ميلا — رفيقة دراسة عربية للأطفال: دفتر، تعلّم سقراطي، وقراءة صور الصفحات.",
+  "description": "StudyBuddy — رفيق دراسة عربي للأطفال: دفتر، تعلّم سقراطي، وقراءة صور الصفحات.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor-community/text-to-speech": "^8.0.2",
     "@capacitor/core": "^8.6.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

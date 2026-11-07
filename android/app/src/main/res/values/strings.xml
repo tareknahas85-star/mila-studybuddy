@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ميلا</string>
-    <string name="title_activity_main">ميلا</string>
+    <string name="app_name">StudyBuddy</string>
+    <string name="title_activity_main">StudyBuddy</string>
     <string name="package_name">com.studybuddy.mila</string>
     <string name="custom_url_scheme">com.studybuddy.mila</string>
 </resources>

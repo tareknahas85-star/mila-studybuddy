@@ -1,4 +1,4 @@
-# البرومت الكامل لمشروع «ميلا» — StudyBuddy
+# البرومت الكامل لمشروع StudyBuddy
 
 > انسخ هالملف كامل وأعطيه لأي مساعد برمجة (أو لأي مطوّر) ليكمّل المشروع أو يعيد بناءه من الصفر.
 
@@ -6,7 +6,7 @@
 
 ## ١) الهدف
 
-«ميلا» تطبيق أندرويد عربي (RTL) لمستخدم واحد (طالب بالمدرسة) على جهازه:
+StudyBuddy تطبيق أندرويد عربي (RTL) لمستخدم واحد (طالب بالمدرسة) على جهازه:
 شريط بحث مربوط بـGemini بيشرح أي سؤال بخطوات وتلميحات وأسئلة خيارات، وكتب بيضيفها الطفل وبيصوّر صفحاتها (كاميرا/معرض) فميلا تقراها وترتّب دروسها، وأرشيف محلي بيرجع له أي درس وصورته، وقسم للأهل محمي برقم سري فيه «ذاكرة الطفل».
 
 **الفكرة الأساسية:** التطبيق كله **محلي أولًا (local-first)** — بلا سيرفر، بلا قاعدة بيانات، بلا حسابات، بلا تسجيل دخول، بلا تتبّع.
@@ -49,7 +49,7 @@
 mila/
 ├─ index.html                  # lang="ar" dir="rtl"، viewport مقفول الزوم
 ├─ vite.config.ts              # react plugin + base: './'
-├─ capacitor.config.ts         # appId com.studybuddy.mila، appName ميلا، webDir dist
+├─ capacitor.config.ts         # appId com.studybuddy.mila، appName StudyBuddy، webDir dist
 ├─ tsconfig.json               # strict + noUnusedLocals + types: ["vite/client"]
 ├─ package.json                # scripts: dev / build / typecheck / preview
 ├─ .gitattributes              # gradlew & *.sh بـLF (مهم لـCI)

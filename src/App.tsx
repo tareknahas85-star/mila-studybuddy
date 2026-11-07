@@ -162,6 +162,7 @@ export default function App() {
   return (
     <div className="shell">
       <header className="topbar">
+        <span className="pill brand">StudyBuddy</span>
         <span className="hi">أهلاً {settings.childName} 🌟</span>
         <span className="stars">⭐ {progress.stars}</span>
       </header>
