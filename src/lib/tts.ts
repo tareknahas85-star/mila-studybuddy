@@ -27,8 +27,6 @@ export const VOICES: VoiceOption[] = [
   { id: 'Aoede', label: 'خفيفة وحيوية', group: 'بنت' },
   { id: 'Puck', label: 'مرح ومتحمس', group: 'صبي' },
   { id: 'Achird', label: 'ودود وهادي', group: 'صبي' },
-  { id: 'Fenrir', label: 'حيوي ومشوّق', group: 'صبي' },
-  { id: 'Umbriel', label: 'هادي وطيب', group: 'صبي' },
 ]
 
 export const DEFAULT_VOICE = 'Sulafat'
