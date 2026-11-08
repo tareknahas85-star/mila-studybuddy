@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import type { Memory, Progress, Settings } from '../lib/store.ts'
-import { currentStreak, learningStyle, subjectReads, loadMemory, weeklyReport } from '../lib/store.ts'
+import {
+  currentStreak,
+  exportData,
+  importData,
+  learningStyle,
+  subjectReads,
+  loadMemory,
+  todayKey,
+  weeklyReport,
+} from '../lib/store.ts'
 import { checkKey, learningInsight } from '../lib/ai.ts'
 import { prettyDate } from '../lib/img.ts'
 import { DEFAULT_VOICE, VOICES, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
@@ -25,6 +34,8 @@ const SIGNAL_LABELS: Array<{ key: keyof Memory['signals']; icon: string; label: 
   { key: 'asked', icon: '✍️', label: 'سأل سؤال' },
 ]
 
+const MAX_BACKUP_BYTES = 20 * 1024 * 1024
+
 /** قسم الأهل: نظرة عامة على التقدّم + ذاكرة الطفل (أسلوبه، مستواه، واهتماماته). */
 export default function ParentView({ settings, progress, memory, onSave, onMemory, onReset }: Props) {
   const [tab, setTab] = useState<'over' | 'memory'>('over')
@@ -40,6 +51,8 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   const [voice, setVoice] = useState(settings.voice || DEFAULT_VOICE)
   const [sampleBusy, setSampleBusy] = useState(false)
   const [sampleMsg, setSampleMsg] = useState('')
+  const [backupMsg, setBackupMsg] = useState('')
+  const [backupError, setBackupError] = useState('')
 
   const persona = personaFor(settings)
   const voicePersona = voicePersonaFor(voice)
@@ -135,6 +148,48 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
     onMemory({ ...memory, insight: res.data, insightAt: Date.now() })
   }
 
+  const exportBackup = () => {
+    try {
+      const json = exportData(settings.profile)
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `studybuddy-${settings.profile}-${todayKey()}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setBackupError('')
+      setBackupMsg('انحفظت النسخة الاحتياطية 💾 — ما فيها رقم الأهل ولا المفتاح.')
+    } catch {
+      setBackupMsg('')
+      setBackupError('ما قدرنا نحضّر النسخة. جرّب مرة تانية.')
+    }
+  }
+
+  const importBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setBackupMsg('')
+    setBackupError('')
+    if (file.size > MAX_BACKUP_BYTES) {
+      setBackupError('الملف كبير كتير، ومو نسخة من ميلا.')
+      return
+    }
+    if (!window.confirm('هالعملية بتستبدل دروس وكتب وذاكرة الطالب الحالي. تكمل؟')) return
+    try {
+      const text = await file.text()
+      if (!importData(text, settings.profile)) {
+        setBackupError('الملف مو نسخة احتياطية صالحة من ميلا.')
+        return
+      }
+      window.location.reload()
+    } catch {
+      setBackupError('ما قدرنا نقرا الملف. جرّب مرة تانية.')
+    }
+  }
+
   const style = learningStyle(memory)
   const reads = subjectReads(memory)
   const totalSignals = SIGNAL_LABELS.reduce((sum, s) => sum + (memory.signals[s.key] ?? 0), 0)
@@ -205,6 +260,10 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             <p className="note small">
               من Google AI Studio — مجاني. بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
             </p>
+            <p className="error small" role="note">
+              ⚠️ المفتاح محفوظ على الجهاز كنص عادي (من غير تشفير). أي شخص بيفتح هالجهاز ويعرف رقم الأهل بيقدر يشوفه.
+              لا تحطه على جهاز بيستعمله غيرك، ولا تشارك نسخة احتياطية.
+            </p>
             <button className="ghost" type="button" onClick={testKey} disabled={checkBusy || key.trim() === ''}>
               {checkBusy ? 'عم نفحص… ⏳' : 'اختبر المفتاح 🔍'}
             </button>
@@ -261,6 +320,27 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             <button className="ghost" type="button" onClick={() => setTab('memory')}>
               افتح ذاكرة الطفل 🧠
             </button>
+          </section>
+
+          <section className="card">
+            <h3 className="small-title">نسخة احتياطية 💾</h3>
+            <p className="note small">
+              احفظ دروس وكتب ونجوم وذاكرة الطالب الحالي في ملف. ما بتنحفظ معه رقم الأهل ولا المفتاح، وما بتنحفظ
+              صور الصفحات (الدروس نفسها بتنحفظ كاملة).
+            </p>
+            <button className="ghost" type="button" onClick={exportBackup}>
+              صدّر نسخة احتياطية 📤
+            </button>
+            <label className="ghost shot-btn">
+              <input type="file" accept="application/json,.json" onChange={importBackup} hidden />
+              استرجع من ملف 📥
+            </label>
+            {backupMsg && <p className="ok">{backupMsg}</p>}
+            {backupError && (
+              <p className="error" role="alert">
+                {backupError}
+              </p>
+            )}
           </section>
         </>
       ) : (
