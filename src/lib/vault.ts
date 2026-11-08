@@ -6,6 +6,9 @@ const DB_NAME = 'mila-vault'
 const STORE = 'keys'
 const WRAP_KEY_ID = 'wrap-v1'
 const PREFIX = 'enc:v1:'
+// احتياط: إذا المتصفح/الـWebView ما قدر يشفّر (IndexedDB أو crypto مقفولين)، المفتاح بينحفظ بهالصيغة
+// عشان ما يختفي بعد ما يسكر التطبيق. هالحالة بتكون أقل أماناً وبتنسجل بالكونسول.
+const PLAIN_PREFIX = 'plain:v1:'
 
 let wrapKeyPromise: Promise<CryptoKey> | null = null
 
@@ -71,14 +74,20 @@ function fromB64(s: string): Uint8Array<ArrayBuffer> {
 
 /** بيشفّر نص ويرجّع سلسلة قابلة للتخزين. */
 export async function encryptSecret(plain: string): Promise<string> {
-  const key = await wrapKey()
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain))
-  return `${PREFIX}${toB64(iv)}.${toB64(new Uint8Array(ct))}`
+  try {
+    const key = await wrapKey()
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain))
+    return `${PREFIX}${toB64(iv)}.${toB64(new Uint8Array(ct))}`
+  } catch (err) {
+    console.warn('vault: encryption unavailable, storing fallback', err)
+    return `${PLAIN_PREFIX}${plain}`
+  }
 }
 
 /** بيفك تشفير سلسلة من encryptSecret. بيرمي خطأ إذا التالفة أو المفتاح ضاع. */
 export async function decryptSecret(blob: string): Promise<string> {
+  if (blob.startsWith(PLAIN_PREFIX)) return blob.slice(PLAIN_PREFIX.length)
   if (!blob.startsWith(PREFIX)) throw new Error('bad-secret-format')
   const [ivPart, ctPart] = blob.slice(PREFIX.length).split('.')
   if (!ivPart || !ctPart) throw new Error('bad-secret-format')
