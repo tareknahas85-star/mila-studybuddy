@@ -32,6 +32,7 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       parentPin: pin,
       geminiKey: key.trim(),
       voice: defaultVoiceFor(gender),
+      profile: gender === 'm' ? 'roy' : 'lily',
     })
   }
 

@@ -182,7 +182,7 @@ export default function Home({
           <h3 className="small-title">تبديل الطالب 👤</h3>
         </div>
         <p className="note small">
-          الخروج بيرجّعك لشاشة التحضير عشان تختار طالبة أو طالب تاني. الدروس والنجوم والصور بتضل محفوظة على هالجهاز.
+          كل طالب صار إله حسابه: النجوم والكتب والدروس والذاكرة لحاله. الخروج بيرجّعك لاختيار ليلي أو روي.
         </p>
         <button className="ghost" type="button" onClick={onSwitch}>
           👤 تبديل الطالب / تسجيل خروج

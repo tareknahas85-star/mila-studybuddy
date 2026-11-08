@@ -7,7 +7,8 @@ import BookView from './components/BookView.tsx'
 import LessonSheet from './components/LessonSheet.tsx'
 import Library from './components/Library.tsx'
 import ParentView from './components/ParentView.tsx'
-import type { Book, Lesson, Memory, Mood, Progress, Settings, SignalKind } from './lib/store.ts'
+import SwitchStudent from './components/SwitchStudent.tsx'
+import type { Book, Lesson, Memory, Mood, ProfileId, Progress, Settings, SignalKind } from './lib/store.ts'
 import {
   bumpSignal,
   completeLesson,
@@ -27,8 +28,6 @@ import {
 import type { LessonDraft } from './lib/ai.ts'
 import { removeImage } from './lib/archive.ts'
 import { personaFor } from './lib/persona.ts'
-import { DEFAULT_SETTINGS } from './lib/store.ts'
-import { DEFAULT_VOICE } from './lib/tts.ts'
 
 type Tab = 'ask' | 'library' | 'parent'
 type View = { kind: 'home' } | { kind: 'book'; id: string } | { kind: 'lesson'; id: string }
@@ -68,6 +67,7 @@ export default function App() {
   const [view, setView] = useState<View>({ kind: 'home' })
   const [mood, setMood] = useState<Mood>('idle')
   const [parentOpen, setParentOpen] = useState(false)
+  const [switchOpen, setSwitchOpen] = useState(false)
   const persona = personaFor(settings)
 
   // كل شي بينحفظ على الجهاز أول بأول.
@@ -150,19 +150,16 @@ export default function App() {
     if (next !== 'parent') setParentOpen(false)
   }
 
-  // تبديل الطالب/تسجيل خروج: بيرجّع لشاشة التحضير مع الحفاظ على رقم ولي الأمر والمفتاح.
-  const switchStudent = () => {
-    const ok = window.confirm(
-      'بدك تبدّل الطالب؟ الدروس والصور والنجوم بتضل محفوظة على هالجهاز، والشاشة بترجع لشاشة التحضير.',
-    )
-    if (!ok) return
-    applySettings({
-      ...settings,
-      childName: '',
-      grade: DEFAULT_SETTINGS.grade,
-      gender: 'f',
-      voice: DEFAULT_VOICE,
-    })
+  // فتح حساب طالب تاني: منحمّل إعداداته وبياناته هو بس.
+  const openProfile = (profile: ProfileId) => {
+    const next = loadSettings(profile)
+    saveSettings(next)
+    setSettings(next)
+    setProgress(loadProgress(profile))
+    setBooks(loadBooks(profile))
+    setLessons(loadLessons(profile))
+    setMemory(loadMemory(profile))
+    setSwitchOpen(false)
     setView({ kind: 'home' })
     setTab('ask')
     setParentOpen(false)
@@ -170,7 +167,7 @@ export default function App() {
   }
 
   // أول تشغيل: ولي الأمر بيحضّر التطبيق.
-  if (settings.childName === '' || settings.parentPin === '') {
+  if (settings.parentPin === '') {
     return (
       <div className="shell">
         <Wizard initial={settings} onDone={applySettings} />
@@ -187,6 +184,15 @@ export default function App() {
         <span className="pill brand">StudyBuddy</span>
         <span className="hi">أهلاً {persona.name} 🌟</span>
         <span className="stars">⭐ {progress.stars}</span>
+        <button
+          type="button"
+          className="ghost slim top-switch"
+          onClick={() => setSwitchOpen(true)}
+          aria-label="تبديل الطالب أو تسجيل الخروج"
+          title="تبديل الطالب"
+        >
+          👤
+        </button>
       </header>
 
       <Buddy
@@ -206,7 +212,13 @@ export default function App() {
       />
 
       <main>
-        {activeLesson ? (
+        {switchOpen ? (
+          <SwitchStudent
+            active={settings.profile}
+            onPick={openProfile}
+            onClose={() => setSwitchOpen(false)}
+          />
+        ) : activeLesson ? (
           <LessonSheet
             lesson={activeLesson}
             onBack={() =>
@@ -244,7 +256,7 @@ export default function App() {
             onOpenLesson={(id) => setView({ kind: 'lesson', id })}
             onMood={setMood}
             onSignal={signal}
-            onSwitch={switchStudent}
+            onSwitch={() => setSwitchOpen(true)}
           />
         ) : tab === 'library' ? (
           <Library

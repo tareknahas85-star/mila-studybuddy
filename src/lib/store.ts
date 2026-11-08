@@ -1,7 +1,11 @@
 // كل شي بينحفظ على جهاز الطفل — ما في سيرفر، ولا حساب، ولا مفتاح بيطلع من الجهاز.
-// النصوص والإعدادات بـlocalStorage، وصور الدروس بـIndexedDB (lib/archive.ts) لأنها أكبر من مساحة localStorage.
+// كل طالب (ليلي/روي) إله حساب مستقل: إعداداته، نجومه، دروسه، كتبه، وذاكرته.
+// رقم ولي الأمر ومفتاح جيميني مشتركين بين الطلاب (إعداد ولي الأمر).
 export type Mood = 'idle' | 'think' | 'laugh' | 'tired' | 'proud'
 export type Gender = 'f' | 'm'
+export type ProfileId = 'lily' | 'roy'
+
+export const PROFILES: ProfileId[] = ['lily', 'roy']
 
 export interface Settings {
   childName: string
@@ -13,6 +17,23 @@ export interface Settings {
   geminiKey: string
   /** صوت الشخصية الطبيعي (Gemini TTS) — اسم الصوت من مكتبة جوجل. */
   voice: string
+  /** حساب الطالب المفتوح حاليًا. */
+  profile: ProfileId
+}
+
+/** إعدادات الطالب نفسه (بتنحفظ لحسابه لحاله). */
+export interface Student {
+  childName: string
+  grade: string
+  gender: Gender
+  voice: string
+}
+
+/** إعدادات ولي الأمر المشتركة بين الطلاب. */
+export interface ParentData {
+  parentPin: string
+  geminiKey: string
+  profile: ProfileId
 }
 
 export interface Progress {
@@ -82,6 +103,10 @@ const PROGRESS_KEY = 'mila.progress.v1'
 const BOOKS_KEY = 'mila.books.v1'
 const LESSONS_KEY = 'mila.lessons.v1'
 const MEMORY_KEY = 'mila.memory.v1'
+const MIGRATED_KEY = 'mila.profiles.v1'
+
+const STUDENT_KEY = (profile: ProfileId): string => `mila.student.v1.${profile}`
+const dataKey = (base: string, profile: ProfileId): string => `${base}.${profile}`
 
 export const DEFAULT_SETTINGS: Settings = {
   childName: '',
@@ -90,6 +115,7 @@ export const DEFAULT_SETTINGS: Settings = {
   parentPin: '',
   geminiKey: '',
   voice: 'Sulafat',
+  profile: 'lily',
 }
 
 export const DEFAULT_MEMORY: Memory = {
@@ -133,20 +159,102 @@ function write(key: string, value: unknown): void {
   }
 }
 
-export const loadSettings = (): Settings => read<Settings>(SETTINGS_KEY, { ...DEFAULT_SETTINGS })
-export const saveSettings = (s: Settings): void => write(SETTINGS_KEY, s)
+/** أول ما يشتغل هالإصدار: بننقل بيانات النسخة القديمة لحساب الطالب الحالي. */
+function migrateProfiles(): void {
+  try {
+    if (localStorage.getItem(MIGRATED_KEY)) return
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    const old = raw ? (JSON.parse(raw) as Partial<Settings>) : null
+    if (old) {
+      const profile: ProfileId = old.profile === 'roy' || old.gender === 'm' ? 'roy' : 'lily'
+      const fallback: Student =
+        profile === 'roy'
+          ? { childName: 'روي', grade: 'الصف الخامس', gender: 'm', voice: 'Puck' }
+          : { childName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' }
+      if (!localStorage.getItem(STUDENT_KEY(profile))) {
+        write(STUDENT_KEY(profile), {
+          childName: typeof old.childName === 'string' && old.childName.trim() !== '' ? old.childName : fallback.childName,
+          grade: typeof old.grade === 'string' && old.grade !== '' ? old.grade : fallback.grade,
+          gender: old.gender === 'm' ? 'm' : 'f',
+          voice: typeof old.voice === 'string' && old.voice !== '' ? old.voice : fallback.voice,
+        })
+      }
+      for (const base of [PROGRESS_KEY, BOOKS_KEY, LESSONS_KEY, MEMORY_KEY]) {
+        const source = localStorage.getItem(base)
+        if (source && !localStorage.getItem(dataKey(base, profile))) {
+          localStorage.setItem(dataKey(base, profile), source)
+        }
+      }
+      write(SETTINGS_KEY, {
+        parentPin: typeof old.parentPin === 'string' ? old.parentPin : '',
+        geminiKey: typeof old.geminiKey === 'string' ? old.geminiKey : '',
+        profile,
+      })
+    }
+    localStorage.setItem(MIGRATED_KEY, '1')
+  } catch {
+    // إذا فشل النقل منكمل بالحساب الافتراضي.
+  }
+}
 
-export const loadProgress = (): Progress => read<Progress>(PROGRESS_KEY, { stars: 0, lessonsDone: 0, days: [] })
-export const saveProgress = (p: Progress): void => write(PROGRESS_KEY, p)
+/** الحساب المفتوح حاليًا (من إعدادات ولي الأمر). */
+export function activeProfile(): ProfileId {
+  migrateProfiles()
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<ParentData>
+      if (parsed.profile === 'roy') return 'roy'
+      if (parsed.profile === 'lily') return 'lily'
+    }
+  } catch {
+    // إعدادات تالفة: منرجع لليلي.
+  }
+  return 'lily'
+}
 
-export const loadBooks = (): Book[] => readList<Book>(BOOKS_KEY)
-export const saveBooks = (b: Book[]): void => write(BOOKS_KEY, b.slice(0, 60))
+export const loadSettings = (profile: ProfileId = activeProfile()): Settings => {
+  migrateProfiles()
+  const parent = read<ParentData>(SETTINGS_KEY, { parentPin: '', geminiKey: '', profile })
+  const fallback: Student =
+    profile === 'roy'
+      ? { childName: 'روي', grade: 'الصف الخامس', gender: 'm', voice: 'Puck' }
+      : { childName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' }
+  const student = read<Student>(STUDENT_KEY(profile), fallback)
+  return {
+    ...student,
+    profile,
+    parentPin: typeof parent.parentPin === 'string' ? parent.parentPin : '',
+    geminiKey: typeof parent.geminiKey === 'string' ? parent.geminiKey : '',
+  }
+}
 
-export const loadLessons = (): Lesson[] => readList<Lesson>(LESSONS_KEY)
-export const saveLessons = (l: Lesson[]): void => write(LESSONS_KEY, l.slice(0, 300))
+export const saveSettings = (s: Settings): void => {
+  write(STUDENT_KEY(s.profile), {
+    childName: s.childName,
+    grade: s.grade,
+    gender: s.gender,
+    voice: s.voice,
+  })
+  write(SETTINGS_KEY, { parentPin: s.parentPin, geminiKey: s.geminiKey, profile: s.profile })
+}
 
-export const loadMemory = (): Memory => {
-  const m = read<Memory>(MEMORY_KEY, { ...DEFAULT_MEMORY })
+export const loadProgress = (profile: ProfileId = activeProfile()): Progress =>
+  read<Progress>(dataKey(PROGRESS_KEY, profile), { stars: 0, lessonsDone: 0, days: [] })
+export const saveProgress = (p: Progress, profile: ProfileId = activeProfile()): void =>
+  write(dataKey(PROGRESS_KEY, profile), p)
+
+export const loadBooks = (profile: ProfileId = activeProfile()): Book[] => readList<Book>(dataKey(BOOKS_KEY, profile))
+export const saveBooks = (b: Book[], profile: ProfileId = activeProfile()): void =>
+  write(dataKey(BOOKS_KEY, profile), b.slice(0, 60))
+
+export const loadLessons = (profile: ProfileId = activeProfile()): Lesson[] =>
+  readList<Lesson>(dataKey(LESSONS_KEY, profile))
+export const saveLessons = (l: Lesson[], profile: ProfileId = activeProfile()): void =>
+  write(dataKey(LESSONS_KEY, profile), l.slice(0, 300))
+
+export const loadMemory = (profile: ProfileId = activeProfile()): Memory => {
+  const m = read<Memory>(dataKey(MEMORY_KEY, profile), { ...DEFAULT_MEMORY })
   return {
     ...DEFAULT_MEMORY,
     ...m,
@@ -156,7 +264,8 @@ export const loadMemory = (): Memory => {
     interests: Array.isArray(m.interests) ? m.interests : [],
   }
 }
-export const saveMemory = (m: Memory): void => write(MEMORY_KEY, m)
+export const saveMemory = (m: Memory, profile: ProfileId = activeProfile()): void =>
+  write(dataKey(MEMORY_KEY, profile), m)
 
 export function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
