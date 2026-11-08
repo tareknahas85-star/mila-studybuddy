@@ -77,7 +77,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
       return
     }
     if (key.trim() === '') {
-      setSampleMsg('حطّ مفتاح جيميني أول شي، وبعدها جرّب الصوت 🔑')
+      setSampleMsg('حطّ مفتاح OpenRouter أول شي، وبعدها جرّب الصوت 🔑')
       return
     }
     primeVoice()
@@ -256,18 +256,18 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             </div>
 
             <label className="label" htmlFor="p-key">
-              مفتاح جيميني المجاني
+              مفتاح OpenRouter المجاني
             </label>
             <input
               id="p-key"
               className="input ltr"
               value={key}
               onChange={(e) => setKey(e.target.value)}
-              placeholder="AIza..."
+              placeholder="sk-or-v1-..."
               autoComplete="off"
             />
             <p className="note small">
-              من Google AI Studio — مجاني. بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
+              من openrouter.ai/keys — فيه موديلات مجانية. بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
             </p>
             <p className="note small" role="note">
               🔒 المفتاح مشفّر على الجهاز (AES-GCM)، ومفتاح التشفير نفسه ما بينقرأ ولا بينصدّر. النسخ الاحتياطية ما فيها المفتاح.
@@ -301,7 +301,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             </button>
             {sampleMsg && <p className={sampleBusy ? 'note small' : 'ok'}>{sampleMsg}</p>}
             <p className="note small">
-              الصوت الطبيعي من جيميني بلهجة شامية دافية — اختار اللي بيعجبك وبيصير صوت {voicePersona.name} بكل الدروس.
+              الصوت الطبيعي (Gemini TTS) ما بيشتغل مع مفتاح OpenRouter، وبيرجع لصوت الجهاز. اختار اللي بيعجبك وبيصير صوت {voicePersona.name} بكل الدروس.
             </p>
 
             {saved && <p className="ok">{saved}</p>}
