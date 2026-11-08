@@ -1,7 +1,7 @@
 {
   "name": "mila",
   "private": true,
-  "version": "0.1.0",
+  "version": "50.3.0",
   "type": "module",
   "description": "StudyBuddy — رفيق دراسة عربي للأطفال: دفتر، تعلّم سقراطي، وقراءة صور الصفحات.",
   "scripts": {
