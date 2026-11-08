@@ -388,3 +388,44 @@ export function weeklyReport(m: Memory): string {
   if (m.notes.trim() !== "") parts.push(`ملاحظة ولي الأمر: ${m.notes.trim()}`)
   return parts.join(" \n ")
 }
+
+/**Export all user data as JSON for backup. */
+export function exportData(profile: ProfileId): string {
+  try {
+    const progress = localStorage.getItem(dataKey(PROGRESS_KEY, profile))
+    const books = localStorage.getItem(dataKey(BOOKS_KEY, profile))
+    const lessons = localStorage.getItem(dataKey(LESSONS_KEY, profile))
+    const memory = localStorage.getItem(dataKey(MEMORY_KEY, profile))
+    const student = localStorage.getItem(STUDENT_KEY(profile))
+    const settings = localStorage.getItem(SETTINGS_KEY)
+    const data = {
+      progress: progress ? JSON.parse(progress) : { stars: 0, lessonsDone: 0, days: [], badgeDates: {} },
+      books: books ? JSON.parse(books) : [],
+      lessons: lessons ? JSON.parse(lessons) : [],
+      memory: memory ? JSON.parse(memory) : DEFAULT_MEMORY,
+      student: student ? JSON.parse(student) : { childName: '', grade: 'al الصف الخامس', gender: 'f', voice: 'Sulafat' },
+      settings: settings ? JSON.parse(settings) : { childName: '', grade: 'al الصف الخامس', gender: 'f', parentPin: '', geminiKey: '', profile: 'lily' },
+    }
+    return JSON.stringify(data)
+  } catch {
+    return '{}'
+  }
+}
+
+/**استيراد البيانات من ملف backup.JSON. */
+export function importData(data: string, profile: ProfileId): boolean {
+  try {
+    const parsed = JSON.parse(data)
+    if (!parsed || typeof parsed !== "object") return false
+    const { progress, books, lessons, memory, student, settings } = parsed
+    if (progress) write(dataKey(PROGRESS_KEY, profile), progress)
+    if (books) write(dataKey(BOOKS_KEY, profile), books.slice(0, 60))
+    if (lessons) write(dataKey(LESSONS_KEY, profile), lessons.slice(0, 300))
+    if (memory) write(dataKey(MEMORY_KEY, profile), { ...DEFAULT_MEMORY, ...memory })
+    if (student) write(STUDENT_KEY(profile), student)
+    if (settings) write(SETTINGS_KEY, settings)
+    return true
+  } catch {
+    return false
+  }
+}
