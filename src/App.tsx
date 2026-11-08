@@ -27,6 +27,8 @@ import {
 import type { LessonDraft } from './lib/ai.ts'
 import { removeImage } from './lib/archive.ts'
 import { personaFor } from './lib/persona.ts'
+import { DEFAULT_SETTINGS } from './lib/store.ts'
+import { DEFAULT_VOICE } from './lib/tts.ts'
 
 type Tab = 'ask' | 'library' | 'parent'
 type View = { kind: 'home' } | { kind: 'book'; id: string } | { kind: 'lesson'; id: string }
@@ -148,6 +150,25 @@ export default function App() {
     if (next !== 'parent') setParentOpen(false)
   }
 
+  // تبديل الطالب/تسجيل خروج: بيرجّع لشاشة التحضير مع الحفاظ على رقم ولي الأمر والمفتاح.
+  const switchStudent = () => {
+    const ok = window.confirm(
+      'بدك تبدّل الطالب؟ الدروس والصور والنجوم بتضل محفوظة على هالجهاز، والشاشة بترجع لشاشة التحضير.',
+    )
+    if (!ok) return
+    applySettings({
+      ...settings,
+      childName: '',
+      grade: DEFAULT_SETTINGS.grade,
+      gender: 'f',
+      voice: DEFAULT_VOICE,
+    })
+    setView({ kind: 'home' })
+    setTab('ask')
+    setParentOpen(false)
+    setMood('idle')
+  }
+
   // أول تشغيل: ولي الأمر بيحضّر التطبيق.
   if (settings.childName === '' || settings.parentPin === '') {
     return (
@@ -223,6 +244,7 @@ export default function App() {
             onOpenLesson={(id) => setView({ kind: 'lesson', id })}
             onMood={setMood}
             onSignal={signal}
+            onSwitch={switchStudent}
           />
         ) : tab === 'library' ? (
           <Library

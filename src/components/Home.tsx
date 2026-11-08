@@ -18,6 +18,7 @@ interface Props {
   onOpenLesson: (id: string) => void
   onMood: (m: Mood) => void
   onSignal: (kind: SignalKind) => void
+  onSwitch: () => void
 }
 
 /** الرئيسية: شريط بحث مربوط بجيميني فوق، وتحته «إضافة كتاب» وكتب الطفل. */
@@ -33,6 +34,7 @@ export default function Home({
   onOpenLesson,
   onMood,
   onSignal,
+  onSwitch,
 }: Props) {
   const [question, setQuestion] = useState('')
   const [busy, setBusy] = useState(false)
@@ -173,6 +175,18 @@ export default function Home({
             ))}
           </div>
         )}
+      </section>
+
+      <section className="card">
+        <div className="row-head">
+          <h3 className="small-title">تبديل الطالب 👤</h3>
+        </div>
+        <p className="note small">
+          الخروج بيرجّعك لشاشة التحضير عشان تختار طالبة أو طالب تاني. الدروس والنجوم والصور بتضل محفوظة على هالجهاز.
+        </p>
+        <button className="ghost" type="button" onClick={onSwitch}>
+          👤 تبديل الطالب / تسجيل خروج
+        </button>
       </section>
 
       {recent.length > 0 && (
