@@ -1,21 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#fdf6e9"/>
-  <circle cx="256" cy="268" r="196" fill="#fffaf1" stroke="#ecdfc9" stroke-width="8"/>
-  <path d="M256 92 392 140 256 188 120 140Z" fill="#2f6fb0"/>
-  <rect x="208" y="166" width="96" height="54" rx="18" fill="#24568a"/>
-  <path d="M392 140v62" stroke="#ffd166" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="392" cy="212" r="11" fill="#ffd166"/>
-  <path d="M256 232 112 276v150l144-44Z" fill="#e2653f"/>
-  <path d="M256 232l144 44v150l-144-44Z" fill="#e2653f"/>
-  <path d="M256 232 126 272v132l130-40Z" fill="#fffdf7"/>
-  <path d="M256 232l130 40v132l-130-40Z" fill="#fffdf7"/>
-  <path d="M256 232v132" stroke="#e2653f" stroke-width="10"/>
+  <rect width="512" height="512" rx="96" fill="#fdf6e9"/>
+  <!-- فقاعة السؤال -->
+  <path d="M176 92H336C360.3 92 380 111.7 380 136V172C380 196.3 360.3 216 336 216H220L166 246L180 214H176C151.7 214 132 196.3 132 172V136C132 111.7 151.7 92 176 92Z" fill="#2f6fb0"/>
+  <!-- نجمة الجواب -->
+  <path d="M256 116C262 146 268 152 298 158C268 164 262 170 256 200C250 170 244 164 214 158C244 152 250 146 256 116Z" fill="#ffd166"/>
+  <!-- الكتاب -->
+  <path d="M256 254C212 230 160 228 100 240V398C160 386 212 390 256 414C300 390 352 386 412 398V240C352 228 300 230 256 254Z" fill="#e2653f"/>
+  <path d="M256 268C214 246 166 244 118 254V384C166 374 214 378 256 398Z" fill="#fffdf7"/>
+  <path d="M256 268C298 246 346 244 394 254V384C346 374 298 378 256 398Z" fill="#fffdf7"/>
   <g stroke="#d9c9ad" stroke-width="7" stroke-linecap="round">
-    <path d="M154 302l74-23"/>
-    <path d="M154 334l74-23"/>
-    <path d="M154 366l60-19"/>
-    <path d="M358 302l-74-23"/>
-    <path d="M358 334l-74-23"/>
-    <path d="M358 366l-60-19"/>
+    <path d="M140 300H222"/>
+    <path d="M140 326H222"/>
+    <path d="M140 352H204"/>
+    <path d="M372 300H290"/>
+    <path d="M372 326H290"/>
+    <path d="M372 352H308"/>
   </g>
 </svg>
