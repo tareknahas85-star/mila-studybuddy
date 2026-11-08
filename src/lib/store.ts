@@ -1,3 +1,5 @@
+import { decryptSecret, encryptSecret } from './vault.ts'
+
 // كل شي بينحفظ على جهاز الطفل — ما في سيرفر، ولا حساب، ولا مفتاح بيطلع من الجهاز.
 // كل طالب (ليلي/روي) إله حساب مستقل: إعداداته، نجومه، دروسه، كتبه، وذاكرته.
 // رقم ولي الأمر ومفتاح جيميني مشتركين بين الطلاب (إعداد ولي الأمر).
@@ -21,7 +23,7 @@ export interface Settings {
   profile: ProfileId
 }
 
-/** إعدادات الطالب نفسه (بتنحفظ لحسابه لحاله). */
+/** إعدادات الطالب نفسه (بتنحفظ لحسابه لحالو). */
 export interface Student {
   childName: string
   grade: string
@@ -32,7 +34,8 @@ export interface Student {
 /** إعدادات ولي الأمر المشتركة بين الطلاب. */
 export interface ParentData {
   parentPin: string
-  geminiKey: string
+  /** قديم: المفتاح كان نص واضح هون. initSecrets بينقله للتشفير وبيمسحه. */
+  geminiKey?: string
   profile: ProfileId
 }
 
@@ -131,6 +134,46 @@ export const DEFAULT_MEMORY: Memory = {
   insightAt: 0,
 }
 
+// مفتاح جيميني: بيضل بالذاكرة أثناء التشغيل، ومشفّر على الجهاز (vault.ts).
+const GEMINI_BLOB_KEY = 'mila.secret.gemini.v1'
+let geminiKeyMem = ''
+
+async function persistGeminiKey(key: string): Promise<boolean> {
+  try {
+    if (!key) {
+      localStorage.removeItem(GEMINI_BLOB_KEY)
+      return true
+    }
+    localStorage.setItem(GEMINI_BLOB_KEY, await encryptSecret(key))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** لازم يتنده قبل ما التطبيق يرسم: بيفك تشفير المفتاح، وبينقل أي مفتاح قديم نص واضح للتشفير. */
+export async function initSecrets(): Promise<void> {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    const parsed = raw ? (JSON.parse(raw) as Partial<ParentData>) : null
+    const legacy = parsed && typeof parsed.geminiKey === 'string' ? parsed.geminiKey.trim() : ''
+    if (parsed && legacy) {
+      geminiKeyMem = legacy
+      if (await persistGeminiKey(legacy)) {
+        const cleaned: Partial<ParentData> = { ...parsed }
+        delete cleaned.geminiKey
+        write(SETTINGS_KEY, cleaned)
+      }
+      return
+    }
+    const blob = localStorage.getItem(GEMINI_BLOB_KEY)
+    if (blob) geminiKeyMem = await decryptSecret(blob)
+  } catch {
+    // مفتاح تالف أو IndexedDB مقفول: منكمل بدون مفتاح، وولي الأمر بقدر يعيد إدخاله.
+    geminiKeyMem = ''
+  }
+}
+
 function read<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -211,14 +254,14 @@ export function activeProfile(): ProfileId {
       if (parsed.profile === 'lily') return 'lily'
     }
   } catch {
-    // إعدادات تالفة: منرجع لليلي.
+    // إعدادات تالفة: منرجع ليلي.
   }
   return 'lily'
 }
 
 export const loadSettings = (profile: ProfileId = activeProfile()): Settings => {
   migrateProfiles()
-  const parent = read<ParentData>(SETTINGS_KEY, { parentPin: '', geminiKey: '', profile })
+  const parent = read<ParentData>(SETTINGS_KEY, { parentPin: '', profile })
   const fallback: Student =
     profile === 'roy'
       ? { childName: 'روي', grade: 'الصف الخامس', gender: 'm', voice: 'Puck' }
@@ -228,7 +271,7 @@ export const loadSettings = (profile: ProfileId = activeProfile()): Settings => 
     ...student,
     profile,
     parentPin: typeof parent.parentPin === 'string' ? parent.parentPin : '',
-    geminiKey: typeof parent.geminiKey === 'string' ? parent.geminiKey : '',
+    geminiKey: geminiKeyMem,
   }
 }
 
@@ -239,7 +282,9 @@ export const saveSettings = (s: Settings): void => {
     gender: s.gender,
     voice: s.voice,
   })
-  write(SETTINGS_KEY, { parentPin: s.parentPin, geminiKey: s.geminiKey, profile: s.profile })
+  write(SETTINGS_KEY, { parentPin: s.parentPin, profile: s.profile })
+  geminiKeyMem = s.geminiKey
+  void persistGeminiKey(s.geminiKey)
 }
 
 export const loadProgress = (profile: ProfileId = activeProfile()): Progress =>
@@ -339,7 +384,7 @@ export function learningStyle(m: Memory): StyleRead {
   if (s.video === max && s.video > s.text) {
     return { key: 'video', label: 'بيحب الفيديو', line: 'الفيديو بيمسكه أكتر — فيديو قصير قبل التمرين بيعمل فرق.' }
   }
-  return { key: 'text', label: 'بيقرا ويكتب', line: 'بيحب يقرا ويكتب — خليه يكتب الحل بإيده بعد الشرح.' }
+  return { key: 'text', label: 'بيقرا وبيكتب', line: 'بيحب يقرا ويكتب — خليه يكتب الحل بإيده بعد الشرح.' }
 }
 
 export interface SubjectRead {
@@ -380,7 +425,7 @@ export function memoryBrief(m: Memory): string {
 
 export function weeklyReport(m: Memory): string {
   const parts: string[] = []
-  if (m.interests.length > 0) parts.push(`ياهتم بـ: ${m.interests.join("، ")}`)
+  if (m.interests.length > 0) parts.push(`يهتم بـ: ${m.interests.join("، ")}`)
   const style = learningStyle(m)
   if (style.key !== "none") parts.push(`أسلوب التعلم: ${style.label}`)
   const strong = subjectReads(m).filter((s) => s.tone === "good").map((s) => s.subject)
@@ -395,7 +440,7 @@ export function weeklyReport(m: Memory): string {
 /**
  * نسخة احتياطية لبيانات الطالب (دروس، كتب، ذاكرة، نجوم).
  * ملاحظة: ما بتحتوي رقم الأهل ولا مفتاح جيميني — هدول بيضلوا على الجهاز.
- * ملاحظة: صور الصفحات (IndexedDB) ما بتنحفظ هون، بس الدروس بتضل نصوص كاملة.
+ * ملاحظة: صور الدروس بتنضاف من ParentView (من IndexedDB)، وهون بس النصوص والبيانات.
  */
 export function exportData(profile: ProfileId): string {
   const parse = (key: string): unknown => {
