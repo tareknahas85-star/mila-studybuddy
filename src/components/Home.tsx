@@ -216,6 +216,20 @@ export default function Home({
           </div>
         </section>
       )}
+      <section className="card">
+        <div className="row-head">
+          <h2 className="title">شاراتي 🏆</h2>
+        </div>
+        <div className="badges-list">
+          {['first-lesson', 'five-days', 'hundred-stars', 'streak-7', 'streak-30'].map((badge) => (
+            <div className="badge-item" key={badge}>
+              <span className="badge-icon">{badge === 'first-lesson' ? '🎓' : badge === 'five-days' ? '📅' : badge === 'hundred-stars' ? '⭐⭐⭐⭐⭐' : badge === 'streak-7' ? '🔥7' : '🔥30'}</span>
+              <span className="badge-label">{badge}</span>
+              <span className="badge-status">{badge === 'first-lesson' && lessons.length > 0 ? '已获解' : badge === 'five-days' && progress.days.length >= 5 ? '5 أيام' : badge === 'hundred-stars' && progress.stars >= 100 ? '100 نجمة' : badge === 'streak-7' && currentStreak(progress) >= 7 ? '7 أيام' : badge === 'streak-30' && currentStreak(progress) >= 30 ? '30 يومًا' : '-locked'}</span>
+            </div>
+          ))}
+        </div>
+      </section>
     </>
   )
 }
