@@ -11,6 +11,7 @@ import {
   weeklyReport,
 } from '../lib/store.ts'
 import { checkKey, learningInsight } from '../lib/ai.ts'
+import { exportImages, importImages } from '../lib/archive.ts'
 import { prettyDate } from '../lib/img.ts'
 import { DEFAULT_VOICE, VOICES, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
 import { personaFor, voicePersonaFor } from '../lib/persona.ts'
@@ -34,7 +35,7 @@ const SIGNAL_LABELS: Array<{ key: keyof Memory['signals']; icon: string; label: 
   { key: 'asked', icon: '✍️', label: 'سأل سؤال' },
 ]
 
-const MAX_BACKUP_BYTES = 20 * 1024 * 1024
+const MAX_BACKUP_BYTES = 150 * 1024 * 1024
 
 /** قسم الأهل: نظرة عامة على التقدّم + ذاكرة الطفل (أسلوبه، مستواه، واهتماماته). */
 export default function ParentView({ settings, progress, memory, onSave, onMemory, onReset }: Props) {
@@ -81,7 +82,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
     }
     primeVoice()
     setSampleBusy(true)
-    setSampleMsg(`عم نجهّز صوت ${voicePersona.name}… أول مرة بتاخد كام ثانية ⏳`)
+    setSampleMsg(`عم نجهّز صوت ${voicePersona.name}… أول مرة باخد كام ثانية ⏳`)
     speakNatural(
       { text: voicePersona.sample, apiKey: key.trim(), voice },
       {
@@ -148,9 +149,13 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
     onMemory({ ...memory, insight: res.data, insightAt: Date.now() })
   }
 
-  const exportBackup = () => {
+  const exportBackup = async () => {
     try {
-      const json = exportData(settings.profile)
+      const base = JSON.parse(exportData(settings.profile)) as Record<string, unknown>
+      const lessons = Array.isArray(base.lessons) ? (base.lessons as Array<{ imageId?: string }>) : []
+      const ids = lessons.map((l) => l.imageId ?? '')
+      base.images = await exportImages(ids)
+      const json = JSON.stringify(base)
       const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
       const a = document.createElement('a')
       a.href = url
@@ -160,7 +165,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
       a.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 1000)
       setBackupError('')
-      setBackupMsg('انحفظت النسخة الاحتياطية 💾 — ما فيها رقم الأهل ولا المفتاح.')
+      setBackupMsg('انحفظت النسخة الاحتياطية 💾 — فيها الدروس وصورها، وما فيها رقم الأهل ولا المفتاح.')
     } catch {
       setBackupMsg('')
       setBackupError('ما قدرنا نحضّر النسخة. جرّب مرة تانية.')
@@ -183,6 +188,10 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
       if (!importData(text, settings.profile)) {
         setBackupError('الملف مو نسخة احتياطية صالحة من ميلا.')
         return
+      }
+      const parsed = JSON.parse(text) as { images?: unknown }
+      if (parsed.images && typeof parsed.images === 'object') {
+        await importImages(parsed.images as Record<string, unknown>)
       }
       window.location.reload()
     } catch {
@@ -260,9 +269,8 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             <p className="note small">
               من Google AI Studio — مجاني. بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
             </p>
-            <p className="error small" role="note">
-              ⚠️ المفتاح محفوظ على الجهاز كنص عادي (من غير تشفير). أي شخص بيفتح هالجهاز ويعرف رقم الأهل بيقدر يشوفه.
-              لا تحطه على جهاز بيستعمله غيرك، ولا تشارك نسخة احتياطية.
+            <p className="note small" role="note">
+              🔒 المفتاح مشفّر على الجهاز (AES-GCM)، ومفتاح التشفير نفسه ما بينقرأ ولا بينصدّر. النسخ الاحتياطية ما فيها المفتاح.
             </p>
             <button className="ghost" type="button" onClick={testKey} disabled={checkBusy || key.trim() === ''}>
               {checkBusy ? 'عم نفحص… ⏳' : 'اختبر المفتاح 🔍'}
@@ -325,8 +333,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
           <section className="card">
             <h3 className="small-title">نسخة احتياطية 💾</h3>
             <p className="note small">
-              احفظ دروس وكتب ونجوم وذاكرة الطالب الحالي في ملف. ما بتنحفظ معه رقم الأهل ولا المفتاح، وما بتنحفظ
-              صور الصفحات (الدروس نفسها بتنحفظ كاملة).
+              احفظ دروس وكتب ونجوم وذاكرة الطالب وصور الدروس في ملف. ما بتنحفظ معه رقم الأهل ولا المفتاح.
             </p>
             <button className="ghost" type="button" onClick={exportBackup}>
               صدّر نسخة احتياطية 📤
@@ -392,7 +399,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
           <section className="card">
             <h3 className="small-title">اهتماماته وميوله 💛</h3>
             {memory.interests.length === 0 ? (
-              <p className="note">اكتب شو بيحب (كرة، ديناصورات، رسم، فضاء…) و{persona.name} {fem ? 'بتستعملها' : 'بيستعملها'} بأمثلته.</p>
+              <p className="note">اكتب شو بحب (كرة، ديناصورات، رسم، فضاء…) و{persona.name} {fem ? 'بتستعملها' : 'بيستعملها'} بأمثلته.</p>
             ) : (
               <div className="signal-row">
                 {memory.interests.map((i) => (
@@ -434,7 +441,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
               onChange={(e) => setNotes(e.target.value)}
               maxLength={400}
               rows={3}
-              placeholder="مثلاً: بيتعب بسرعة من القراءة الطويلة، بيحب يشتغل بإيده."
+              placeholder="مثلاً: بيتعب بسرعة من القراءة الطويلة، بحب يشتغل بإيده."
             />
             <button className="ghost" type="button" onClick={saveNotes}>
               حفظ الملاحظة 💾
@@ -477,7 +484,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
 
           <section className="card">
             <p className="note small">
-              كل البيانات (الاسم، المفتاح، الدروس، الصور، الذاكرة) محفوظة على هالجهاز فقط، وما بتنطلع منه إلا طلبات
+              كل البيانات (الاسم، المفتاح، الدروس، الصور، الذاكرة) محفوظة على هالجهاز فقط، وما بتطلع منه إلا طلبات
               الشرح اللي بتروح لجيميني بمفتاحك.
             </p>
           </section>
