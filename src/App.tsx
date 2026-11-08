@@ -8,6 +8,7 @@ import LessonSheet from './components/LessonSheet.tsx'
 import Library from './components/Library.tsx'
 import ParentView from './components/ParentView.tsx'
 import SwitchStudent from './components/SwitchStudent.tsx'
+import Review from './components/Review.tsx'
 import type { Book, Lesson, Memory, Mood, ProfileId, Progress, Settings, SignalKind } from './lib/store.ts'
 import {
   bumpSignal,
@@ -30,13 +31,14 @@ import type { LessonDraft } from './lib/ai.ts'
 import { removeImage } from './lib/archive.ts'
 import { personaFor } from './lib/persona.ts'
 
-type Tab = 'ask' | 'library' | 'parent'
-type View = { kind: 'home' } | { kind: 'book'; id: string } | { kind: 'lesson'; id: string }
+type Tab = 'ask' | 'library' | 'parent' | 'review'
+type View = { kind: 'home' } | { kind: 'book'; id: string } | { kind: 'lesson'; id: string } | { kind: 'review' }
 
 const TABS: Array<{ id: Tab; label: string; icon: string }> = [
   { id: 'ask', label: 'اسأل', icon: '🔎' },
   { id: 'library', label: 'دروسي', icon: '🗂️' },
   { id: 'parent', label: 'الأهل', icon: '👨‍👩‍👧' },
+  { id: 'review', label: 'مراجعة', icon: '📝' },
 ]
 
 function newLesson(draft: LessonDraft, bookId: string, imageId: string): Lesson {
@@ -258,6 +260,13 @@ export default function App() {
             onMood={setMood}
             onSignal={signal}
             onSwitch={() => setSwitchOpen(true)}
+          />
+        ) : tab === 'review' ? (
+          <Review
+            profile={settings.profile}
+            onDone={(_question: string, _correct: boolean) => {
+              setView({ kind: 'home' })
+            }}
           />
         ) : tab === 'library' ? (
           <Library
