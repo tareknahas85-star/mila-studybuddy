@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Memory, Progress, Settings } from '../lib/store.ts'
-import { currentStreak, learningStyle, subjectReads } from '../lib/store.ts'
+import { currentStreak, learningStyle, subjectReads, loadMemory, weeklyReport } from '../lib/store.ts'
 import { checkKey, learningInsight } from '../lib/ai.ts'
 import { prettyDate } from '../lib/img.ts'
 import { DEFAULT_VOICE, VOICES, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
@@ -13,6 +13,7 @@ interface Props {
   onSave: (s: Settings) => void
   onMemory: (m: Memory) => void
   onReset: () => void
+  onShareWeeklyReport: (profile: 'lily' | 'roy') => void
 }
 
 const SIGNAL_LABELS: Array<{ key: keyof Memory['signals']; icon: string; label: string }> = [
@@ -400,8 +401,29 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
               الشرح اللي بتروح لجيميني بمفتاحك.
             </p>
           </section>
+          <section className="card">
+            <h3 className="small-title">تقرير أسبوعي 📊</h3>
+            <button
+              className="primary"
+              type="button"
+              onClick={() => onShareWeeklyReport(settings.profile)}
+            >
+              شارك تقرير الأسبوع
+            </button>
+            <p className="note small">
+              ملخص نشاط الأسبوع بناءً على بيانات الذاكرة
+            </p>
+          </section>
         </>
       )}
     </div>
   )
+}
+
+function onShareWeeklyReport(profile: "lily" | "roy") {
+  const memory = loadMemory(profile)
+  const report = weeklyReport(memory)
+  const whatsappText = encodeURIComponent(report || "لا توجد بيانات كافية لهذا الأسبوع")
+  const url = `https://wa.me/?text=${whatsappText}`
+  window.open(url, "_blank")
 }

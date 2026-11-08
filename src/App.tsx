@@ -24,6 +24,7 @@ import {
   saveProgress,
   saveSettings,
   uid,
+  weeklyReport,
 } from './lib/store.ts'
 import type { LessonDraft } from './lib/ai.ts'
 import { removeImage } from './lib/archive.ts'
@@ -277,6 +278,13 @@ export default function App() {
               setParentOpen(false)
               goTab('ask')
             }}
+            onShareWeeklyReport={(profile: 'lily' | 'roy') => {
+            const memory = loadMemory(profile)
+            const report = weeklyReport(memory)
+            const whatsappText = encodeURIComponent(report || 'لا توجد بيانات كافية لهذا الأسبوع')
+            const url = `https://wa.me/?text=${whatsappText}`
+            window.open(url, '_blank')
+          }}
           />
         ) : (
           <Lock

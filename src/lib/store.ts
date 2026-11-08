@@ -374,3 +374,17 @@ export function memoryBrief(m: Memory): string {
   if (m.notes.trim() !== '') parts.push(`ملاحظة ولي الأمر: ${m.notes.trim()}`)
   return parts.join(' | ')
 }
+
+export function weeklyReport(m: Memory): string {
+  const parts: string[] = []
+  if (m.interests.length > 0) parts.push(`ياهتم بـ: ${m.interests.join("، ")}`)
+  const style = learningStyle(m)
+  if (style.key !== "none") parts.push(`أسلوب التعلم: ${style.label}`)
+  const strong = subjectReads(m).filter((s) => s.tone === "good").map((s) => s.subject)
+  const weak = subjectReads(m).filter((s) => s.tone === "low").map((s) => s.subject)
+  if (strong.length > 0) parts.push(`قوي فيه: ${strong.join("، ")}`)
+  if (weak.length > 0) parts.push(`يحتاج دعم: ${weak.join("، ")}`)
+  if (m.topics.length > 0) parts.push(`آخر مواضيع: ${m.topics.slice(0, 6).join("، ")}`)
+  if (m.notes.trim() !== "") parts.push(`ملاحظة ولي الأمر: ${m.notes.trim()}`)
+  return parts.join(" \n ")
+}
