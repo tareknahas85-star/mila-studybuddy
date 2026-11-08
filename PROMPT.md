@@ -22,7 +22,7 @@
 4. **الخطاب محايد تجاه الطالب:** «جرّب/شوف/اكتب» — ممنوع صيغة المؤنث للطفل، وممنوع تفترض إنه بنت. (الشخصية إما ليلي بنت أو روي صبي، والضمير بيتبع الصوت المختار.)
 5. **الواجهة عربية RTL بالكامل، موبايل أولًا.**
 6. **بدون تتبّع أو إعلانات أو تحليلات.**
-7. **الاسم:** التطبيق/العنوان/الأيقونة = **StudyBuddy**. الشخصية جوّا الحوار: **ليلي** إذا الصوت بنت و**روي** إذا الصوت صبي. المعرّفات الداخلية (`com.studybuddy.mila`، `mila.apk`، مفاتيح `mila.*`، قاعدة `mila-archive`/`mila-voice`) **ما بتتغيّر** حتى ما تنكسر الترقية وبيانات الطفل.
+7. **الاسم:** التطبيق/العنوان/الأيقونة = **StudyBuddy**. الشخصية جوّا الحوار: **ليلي** إذا الصوت بنت و**روي** إذا الصوت صبي. المعرّفات الداخلية (`com.studybuddy.app`، `mila.apk`، مفاتيح `mila.*`، قاعدة `mila-archive`/`mila-voice`) **ما بتتغيّر** حتى ما تنكسر الترقية وبيانات الطفل.
 
 ---
 
@@ -49,7 +49,7 @@ CI: Node 22، JDK 21 (temurin)، Android SDK 36 / build-tools 36.0.0.
 mila/
 ├─ index.html                  # lang="ar" dir="rtl"، title: StudyBuddy — رفيق الدراسة
 ├─ vite.config.ts              # react + base: './'
-├─ capacitor.config.ts         # appId com.studybuddy.mila، appName StudyBuddy، webDir dist
+├─ capacitor.config.ts         # appId com.studybuddy.app، appName StudyBuddy، webDir dist
 ├─ .github/workflows/ci.yml    # job web (typecheck+build+artifact) و job apk (assembleDebug → artifact mila-apk)
 ├─ android/                    # مشروع Capacitor (متعقّب): strings.xml app_name = StudyBuddy
 ├─ resources/                  # مصدر الأيقونة/السبلاش
