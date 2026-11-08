@@ -1,4 +1,4 @@
-package com.studybuddy.mila;
+package com.studybuddy.app;
 
 import com.getcapacitor.BridgeActivity;
 
