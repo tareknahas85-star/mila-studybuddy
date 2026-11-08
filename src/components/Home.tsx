@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { LocalNotifications } from '@capacitor/local-notifications'
 import { askMila, type LessonDraft } from '../lib/ai.ts'
 import type { Book, Lesson, Memory, Mood, Progress, Settings, SignalKind } from '../lib/store.ts'
 import { currentStreak } from '../lib/store.ts'
@@ -43,8 +42,6 @@ export default function Home({
   const [adding, setAdding] = useState(false)
   const [bookTitle, setBookTitle] = useState('')
   const [bookSubject, setBookSubject] = useState(SUBJECTS[0])
-  const [hasNotificationPermission, setHasNotificationPermission] = useState(false)
-  const [showPermissionRequest, setShowPermissionRequest] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,32 +61,6 @@ export default function Home({
     onMood('laugh')
     setQuestion('')
     onDraft(res.data)
-  }
-
-  const requestNotificationPermission = async () => {
-    try {
-      const permission = await LocalNotifications.requestPermissions()
-      setHasNotificationPermission(true)
-    } catch (e) {
-      console.error('Notification error:', e)
-    }
-  }
-
-  const scheduleDailyReview = async () => {
-    if (!hasNotificationPermission) return
-    try {
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: 'Daily Review Reminder',
-            body: 'Time for your daily review exercises',
-            id: 1,
-          },
-        ],
-      })
-    } catch (e) {
-      console.error('Failed to schedule notification:', e)
-    }
   }
 
   const addBook = (e: React.FormEvent) => {

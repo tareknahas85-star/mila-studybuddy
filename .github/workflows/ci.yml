@@ -7,7 +7,7 @@ on:
 
 jobs:
   web:
-    name: ويب (typecheck + build)
+    name: ويب (typecheck + tests + build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +17,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
