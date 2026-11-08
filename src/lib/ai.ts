@@ -4,14 +4,18 @@ import type { QuizItem, Settings, Memory } from './store.ts'
 import { learningStyle, memoryBrief, subjectReads } from './store.ts'
 import { personaFor } from './persona.ts'
 
-const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta'
+const API_ROOT = 'https://openrouter.ai/api/v1'
 
 /**
- * أسماء الموديلات المجانية عند جوجل بتتغيّر كل فترة:
- * موديلات 2.5 صارت ترجّع 404 لمشاريع جديدة، والمجاني الحالي هو 3.x Flash.
- * فبنجرّب بالترتيب، وأول موديل بيشتغل بينحفظ للجلسة كلها.
+ * موديلات OpenRouter المجانية (:free) بتتغيّر كل فترة، فبنجرّب بالترتيب.
+ * اللي بيقرا صور أول، لأن صفحات الكتب بتحتاجها. أول موديل بيشتغل بينحفظ للجلسة كلها.
  */
-const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash']
+const MODELS = [
+  'google/gemma-3-27b-it:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen-2.5-72b-instruct:free',
+]
 let modelIdx = 0
 
 export interface LessonDraft {
@@ -33,15 +37,14 @@ export interface PageResult {
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
 const NO_KEY = 'ما في مفتاح محفوظ. ولي الأمر بيحطه من قسم الأهل ← نظرة عامة.'
-const BAD_KEY = 'المفتاح ما انقبل. انسخه كامل من Google AI Studio واحفظه من قسم الأهل.'
-const RESTRICTED = 'المفتاح موجود بس مو مسموح له يستعمل Gemini API. جرّب مفتاح جديد من مشروع تاني.'
-const COUNTRY = 'النسخة المجانية من جيميني مو متاحة لبلد/مشروع هالمفتاح. جرّب مفتاح من مشروع جديد.'
+const BAD_KEY = 'المفتاح ما انقبل. انسخه كامل من OpenRouter (openrouter.ai/keys) واحفظه من قسم الأهل.'
+const RESTRICTED = 'OpenRouter رفض الطلب لهالحساب أو هالمنطقة. جرّب حساب تاني أو مزوّد تاني.'
+const CREDIT = 'رصيد حسابك في OpenRouter خلص. الموديلات المجانية بس بتشتغل بدون رصيد.'
 const NO_NET = 'ما في اتصال بالإنترنت. جرّب كمان شوي.'
 const TIMEOUT = 'تأخّرنا شوي بالتفكير. جرّب مرة تانية.'
 const BUSY = 'مشغولين شوي هلق. جرّب كمان مرة.'
-const NO_MODEL = 'موديلات جيميني المجانية تغيّرت وما لقينا موديل شغّال. نزّل آخر نسخة من التطبيق.'
-const LOW_QUOTA = 'خلص عدد الطلبات المسموح اليوم. جرّب بكرا 🌙'
-const RATE_LIMIT = 'طلبات كتير بوقت قصير. استنّى دقيقة وجرّب.'
+const NO_MODEL = 'ما لقينا موديل مجاني شغّال هلق. جرّب بعد شوي.'
+const RATE_LIMIT = 'الموديلات المجانية مشغولة أو وصلت حدّها. استنّى دقيقة وجرّب.'
 
 function persona(settings: Pick<Settings, 'grade' | 'gender' | 'voice'>, memory: Memory): string {
   const p = personaFor(settings)
@@ -81,33 +84,36 @@ interface ApiFailure {
 
 async function failure(res: Response): Promise<ApiFailure> {
   const body: unknown = await res.json().catch(() => null)
-  const err = (body as { error?: { status?: string; message?: string } } | null)?.error
+  const err = (body as { error?: { code?: unknown; message?: unknown } } | null)?.error
+  const code = typeof err?.code === 'number' ? err.code : res.status
   return {
     status: res.status,
-    code: typeof err?.status === 'string' ? err.status : '',
+    code: String(code),
     message: typeof err?.message === 'string' ? err.message : '',
   }
 }
 
-/** بيحوّل رد جوجل لرسالة عربية مفهومة، ومعها كود الخطأ حتى ينعرف السبب. */
+/** بيحوّل رد OpenRouter لرسالة عربية مفهومة، ومعها كود الخطأ حتى ينعرف السبب. */
 function explain(f: ApiFailure): string {
-  const msg = f.message.toLowerCase()
-  const code = f.code !== '' ? f.code : `HTTP ${f.status}`
   if (f.status === 400) {
-    if (msg.includes('api key') || msg.includes('api_key') || msg.includes('credential')) return BAD_KEY
-    if (msg.includes('country') || msg.includes('location') || msg.includes('not available')) return COUNTRY
     const detail = f.message.length > 120 ? `${f.message.slice(0, 120)}…` : f.message
-    return `جوجل ما قبلت الطلب (${code}).${detail ? ` ${detail}` : ''}`
+    return `OpenRouter ما قبل الطلب (كود ${f.status}).${detail ? ` ${detail}` : ''}`
   }
   if (f.status === 401) return BAD_KEY
+  if (f.status === 402) return CREDIT
   if (f.status === 403) return RESTRICTED
   if (f.status === 404) return NO_MODEL
-  if (f.status === 429) {
-    if (msg.includes('per day') || msg.includes('daily') || msg.includes('perday')) return LOW_QUOTA
-    return RATE_LIMIT
-  }
-  if (f.status >= 500) return `${BUSY} (كود ${f.status})`
+  if (f.status === 429) return RATE_LIMIT
   return `${BUSY} (كود ${f.status})`
+}
+
+/** أجزاء الطلب (نص أو صورة) بتتحوّل لصيغة OpenRouter. */
+function toChatPart(part: unknown): Record<string, unknown> {
+  const p = part as { text?: string; inlineData?: { mimeType: string; data: string } }
+  if (p.inlineData) {
+    return { type: 'image_url', image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` } }
+  }
+  return { type: 'text', text: p.text ?? '' }
 }
 
 async function postGenerate(
@@ -119,12 +125,13 @@ async function postGenerate(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 60000)
   try {
-    const res = await fetch(`${API_ROOT}/models/${model}:generateContent`, {
+    const res = await fetch(`${API_ROOT}/chat/completions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'X-Title': 'StudyBuddy' },
       body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { responseMimeType: 'application/json', temperature },
+        model,
+        messages: [{ role: 'user', content: parts.map(toChatPart) }],
+        temperature,
       }),
       signal: controller.signal,
     })
@@ -153,7 +160,7 @@ async function callJson(apiKey: string, parts: unknown[], temperature: number): 
     last = f
     // موديل مسكّر، تحت ضغط، أو خلصت حصته؟ جرّب اللي بعده — كل موديل إله حصة مستقلة.
     // خطأ مفتاح أو طلب غلط ما بينفع معه موديل تاني، فبيرجع فورًا.
-    if (f.status === 404 || f.status === 429 || f.status >= 500) continue
+    if (f.status === 404 || f.status === 429 || f.status >= 500 || (f.status === 400 && /model|image|input/i.test(f.message))) continue
     return { ok: false, error: explain(f) }
   }
   return { ok: false, error: last ? explain(last) : NO_MODEL }
@@ -161,13 +168,8 @@ async function callJson(apiKey: string, parts: unknown[], temperature: number): 
 
 async function parseJson(res: Response): Promise<Result<Record<string, unknown>>> {
   const raw: unknown = await res.json().catch(() => null)
-  const responseParts = (
-    raw as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }> } | null
-  )?.candidates?.[0]?.content?.parts
-  const all = Array.isArray(responseParts) ? responseParts : []
-  // أجزاء "التفكير" مو جزء من الجواب، فما منخلطها مع الـJSON.
-  const answer = all.filter((p) => p.thought !== true).map((p) => p.text ?? '').join('')
-  const text = answer.trim() !== '' ? answer : all.map((p) => p.text ?? '').join('')
+  const content = (raw as { choices?: Array<{ message?: { content?: unknown } }> } | null)?.choices?.[0]?.message?.content
+  const text = typeof content === 'string' ? content : ''
   if (text.trim() === '') return { ok: false, error: 'ما فهمنا الرد. جرّب مرة تانية.' }
 
   const cleaned = text
@@ -204,39 +206,18 @@ export async function checkKey(apiKey: string): Promise<Result<string>> {
   const key = apiKey.trim()
   if (key === '') return { ok: false, error: NO_KEY }
 
-  let listed: Response
-  try {
-    listed = await fetch(`${API_ROOT}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } })
-  } catch {
-    return { ok: false, error: NO_NET }
-  }
-  if (!listed.ok) return { ok: false, error: explain(await failure(listed)) }
-
-  const raw: unknown = await listed.json().catch(() => null)
-  const models = (raw as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }> } | null)?.models ?? []
-  const usable = new Set(
-    models
-      .filter((m) => (m.supportedGenerationMethods ?? []).includes('generateContent'))
-      .map((m) => (m.name ?? '').replace(/^models\//, '')),
-  )
-  const model = MODELS.find((m) => usable.has(m)) ?? [...usable][0] ?? ''
-  if (model === '') {
-    return { ok: false, error: 'المفتاح مقبول بس ما في موديل مجاني متاح لحسابك. جرّب مفتاح جديد من AI Studio.' }
-  }
-
-  const candidates = MODELS.filter((m) => usable.has(m))
   let lastError = ''
-  for (const candidate of candidates.length > 0 ? candidates : [model]) {
+  for (let i = 0; i < MODELS.length; i += 1) {
+    const candidate = MODELS[i]
     const test = await postGenerate(key, candidate, [{ text: 'رجّع {"ok":true} وبس.' }], 0)
     if (!test.ok) return { ok: false, error: test.error }
     if (test.res.ok) {
-      const at = MODELS.indexOf(candidate)
-      if (at >= 0) modelIdx = at
+      modelIdx = i
       return { ok: true, data: candidate }
     }
     const f = await failure(test.res)
     lastError = explain(f)
-    if (f.status === 404 || f.status === 429 || f.status >= 500) continue
+    if (f.status === 404 || f.status === 429 || f.status >= 500 || (f.status === 400 && /model|image|input/i.test(f.message))) continue
     return { ok: false, error: lastError }
   }
   return { ok: false, error: lastError || NO_MODEL }

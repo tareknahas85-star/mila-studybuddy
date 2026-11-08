@@ -94,18 +94,18 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       </div>
 
       <label className="label" htmlFor="key">
-        مفتاح جيميني المجاني
+        مفتاح OpenRouter المجاني
       </label>
       <input
         id="key"
         className="input ltr"
         value={key}
         onChange={(e) => setKey(e.target.value)}
-        placeholder="AIza..."
+        placeholder="sk-or-v1-..."
         autoComplete="off"
       />
       <p className="note small">
-        من <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer noopener">Google AI Studio</a> — مجاني.
+        من <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer noopener">openrouter.ai/keys</a> — فيه موديلات مجانية.
         المفتاح بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
       </p>
 
