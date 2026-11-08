@@ -88,7 +88,7 @@ export default function Home({
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="اكتب سؤالك… مثلاً: ليش السماء زرقا؟"
             maxLength={220}
-            aria-label="سؤالك لميلا"
+            aria-label="سؤالك"
           />
           <button className="primary search-btn" type="submit" disabled={busy || question.trim().length < 3}>
             {busy ? '⏳' : 'اشرح ✨'}
@@ -103,7 +103,7 @@ export default function Home({
           ))}
         </div>
 
-        {busy && <p className="note small">ميلا عم تفكّر وبتجهّز الشرح… خذ وقتك 💭</p>}
+        {busy && <p className="note small">عم نفكّر ونجهّز الشرح… خذ وقتك 💭</p>}
         {error && (
           <p className="error" role="alert">
             {error}
@@ -149,10 +149,10 @@ export default function Home({
             <button className="primary" type="submit" disabled={bookTitle.trim().length < 2}>
               أضف الكتاب 📥
             </button>
-            <p className="note small">بعد ما ينضاف، افتحه وصوّر أي صفحة — ميلا بترتّب الدروس وبتحفظها بالأرشيف.</p>
+            <p className="note small">بعد ما ينضاف، افتحه وصوّر أي صفحة — منرتّب الدروس ومنحفظها بالأرشيف.</p>
           </form>
         ) : books.length === 0 ? (
-          <p className="note">ما في كتب لسا. ضيف كتابك الأول، وبعدها صوّر صفحاته وخلّي ميلا تشرحلك.</p>
+          <p className="note">ما في كتب لسا. ضيف كتابك الأول، وبعدها صوّر صفحاته وخلّينا نشرحلك.</p>
         ) : (
           <div className="list">
             {books.map((b) => (

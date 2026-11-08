@@ -3,7 +3,8 @@ import type { Memory, Progress, Settings } from '../lib/store.ts'
 import { currentStreak, learningStyle, subjectReads } from '../lib/store.ts'
 import { checkKey, learningInsight } from '../lib/ai.ts'
 import { prettyDate } from '../lib/img.ts'
-import { DEFAULT_VOICE, VOICE_SAMPLE, VOICES, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
+import { DEFAULT_VOICE, VOICES, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
+import { personaFor, voicePersonaFor } from '../lib/persona.ts'
 
 interface Props {
   settings: Settings
@@ -26,7 +27,6 @@ const SIGNAL_LABELS: Array<{ key: keyof Memory['signals']; icon: string; label: 
 /** قسم الأهل: نظرة عامة على التقدّم + ذاكرة الطفل (أسلوبه، مستواه، واهتماماته). */
 export default function ParentView({ settings, progress, memory, onSave, onMemory, onReset }: Props) {
   const [tab, setTab] = useState<'over' | 'memory'>('over')
-  const [name, setName] = useState(settings.childName)
   const [key, setKey] = useState(settings.geminiKey)
   const [notes, setNotes] = useState(memory.notes)
   const [saved, setSaved] = useState('')
@@ -40,13 +40,17 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   const [sampleBusy, setSampleBusy] = useState(false)
   const [sampleMsg, setSampleMsg] = useState('')
 
+  const persona = personaFor(settings)
+  const voicePersona = voicePersonaFor(voice)
+  const fem = persona.gender === 'f'
+
   const flash = (msg: string) => {
     setSaved(msg)
     window.setTimeout(() => setSaved(''), 2500)
   }
 
   const saveSettings = () => {
-    onSave({ ...settings, childName: name.trim() || settings.childName, geminiKey: key.trim(), voice })
+    onSave({ ...settings, childName: persona.name, geminiKey: key.trim(), voice })
     flash('انحفظ ✅')
   }
 
@@ -63,11 +67,14 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
     }
     primeVoice()
     setSampleBusy(true)
-    setSampleMsg('عم نجهّز صوت ميلا… أول مرة بتاخد كام ثانية ⏳')
+    setSampleMsg(`عم نجهّز صوت ${voicePersona.name}… أول مرة بتاخد كام ثانية ⏳`)
     speakNatural(
-      { text: VOICE_SAMPLE, apiKey: key.trim(), voice },
+      { text: voicePersona.sample, apiKey: key.trim(), voice },
       {
-        onStart: () => setSampleMsg('هي ميلا عم تحكي 🎧'),
+        onStart: () =>
+          setSampleMsg(
+            `${voicePersona.name} عم ${voicePersona.gender === 'f' ? 'تحكي' : 'يحكي'} 🎧`,
+          ),
         onEnd: () => {
           setSampleBusy(false)
           setSampleMsg('')
@@ -111,7 +118,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
       setCheckError(res.error)
       return
     }
-    setCheckMsg(`المفتاح شغّال ✅ — ميلا عم تستعمل موديل ${res.data}`)
+    setCheckMsg(`المفتاح شغّال ✅ — ${persona.name} عم ${fem ? 'تستعمل' : 'يستعمل'} موديل ${res.data}`)
   }
 
   const generateInsight = async () => {
@@ -175,10 +182,13 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
               </div>
             </div>
 
-            <label className="label" htmlFor="p-name">
-              اسم الطالب (الطالبة)
-            </label>
-            <input id="p-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} />
+            <div className="persona-line">
+              <img src={persona.avatar} alt={persona.name} />
+              <div>
+                <strong>{persona.name}</strong>
+                <span className="note small">أفاتار الطالب واسمه بيضلوا ثابتين</span>
+              </div>
+            </div>
 
             <label className="label" htmlFor="p-key">
               مفتاح جيميني المجاني
@@ -205,7 +215,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             )}
 
             <label className="label" htmlFor="p-voice">
-              صوت ميلا 🔊
+              صوت {voicePersona.name} 🔊
             </label>
             <select id="p-voice" className="input" value={voice} onChange={(e) => setVoice(e.target.value)}>
               {(['بنت', 'صبي'] as const).map((group) => (
@@ -223,7 +233,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             </button>
             {sampleMsg && <p className={sampleBusy ? 'note small' : 'ok'}>{sampleMsg}</p>}
             <p className="note small">
-              الصوت الطبيعي من جيميني بلهجة شامية دافية — اختار اللي بيعجبك وبيصير صوت ميلا بكل الدروس.
+              الصوت الطبيعي من جيميني بلهجة شامية دافية — اختار اللي بيعجبك وبيصير صوت {voicePersona.name} بكل الدروس.
             </p>
 
             {saved && <p className="ok">{saved}</p>}
@@ -301,7 +311,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
           <section className="card">
             <h3 className="small-title">اهتماماته وميوله 💛</h3>
             {memory.interests.length === 0 ? (
-              <p className="note">اكتب شو بيحب (كرة، ديناصورات، رسم، فضاء…) وميلا بتستعملها بأمثلتها.</p>
+              <p className="note">اكتب شو بيحب (كرة، ديناصورات، رسم، فضاء…) و{persona.name} {fem ? 'بتستعملها' : 'بيستعملها'} بأمثلته.</p>
             ) : (
               <div className="signal-row">
                 {memory.interests.map((i) => (
@@ -364,9 +374,9 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
           </section>
 
           <section className="card">
-            <h3 className="small-title">ملاحظة ميلا 📝</h3>
+            <h3 className="small-title">ملاحظة {persona.name} 📝</h3>
             <p className="note small">
-              ميلا بتحلّل أسلوبه ونتايجه وبترجّعلك ملاحظة قصيرة مع اقتراح عملي. بتتولّد بس لما تطلبها.
+              {persona.name} {fem ? 'بتحلّل أسلوبه ونتايجه وبترجّعلك' : 'بيحلّل أسلوبه ونتايجه وبيجيبلك'} ملاحظة قصيرة مع اقتراح عملي. بتتولّد بس لما تطلبها.
             </p>
             {memory.insight && (
               <p className="insight">
@@ -375,7 +385,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
               </p>
             )}
             <button className="primary" type="button" onClick={generateInsight} disabled={insightBusy}>
-              {insightBusy ? 'ميلا عم تفكّر… ⏳' : memory.insight ? 'حدّث الملاحظة ✨' : 'اطلب ملاحظة من ميلا ✨'}
+              {insightBusy ? `${persona.name} عم ${fem ? 'تفكّر' : 'يفكّر'}… ⏳` : memory.insight ? 'حدّث الملاحظة ✨' : `اطلب ملاحظة من ${persona.name} ✨`}
             </button>
             {insightError && (
               <p className="error" role="alert">

@@ -1,4 +1,4 @@
-// صوت ميلا الطبيعي: جيميني (Gemini TTS) بيولّد الصوت بصوت بشري حقيقي
+// صوت الشخصية الطبيعي: جيميني (Gemini TTS) بيولّد الصوت بصوت بشري حقيقي
 // بوصف لهجة شامية دافية، بدل صوت الجهاز الروبوتي.
 // الصوت بينحفظ على الجهاز (IndexedDB) فبيرجع فورًا وبيشتغل بلا نت بعد أول مرة.
 // إذا ما في مفتاح أو نت أو صار خطأ، الدرس بيرجع لصوت الجهاز (lib/speech.ts).
@@ -38,9 +38,6 @@ function styleFor(voice: string): string {
   const option = VOICES.find((v) => v.id === voice)
   return option?.group === 'صبي' ? STYLE_M : STYLE_F
 }
-
-/** جملة قصيرة لتجربة الصوت من قسم الأهل. */
-export const VOICE_SAMPLE = 'أهلين! أنا ميلا، رفيقتك بالدراسة. يلا نحلّ سوا ونتعلّم شي جديد اليوم.'
 
 export interface SpeakOptions {
   text: string
@@ -300,7 +297,7 @@ function play(audio: AudioBuffer): Promise<void> {
   })
 }
 
-/** بيولّد ويشغّل الشرح بصوت ميلا الطبيعي. بيرجّع false إذا ما في إمكانية صوت. */
+/** بيولّد ويشغّل الشرح بصوت الشخصية الطبيعي. بيرجّع false إذا ما في إمكانية صوت. */
 export function speakNatural(opts: SpeakOptions, cb: SpeakCallbacks = {}): boolean {
   primeVoice()
   stopNatural()

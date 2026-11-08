@@ -1,25 +1,38 @@
 import { useState } from 'react'
 import type { Gender, Settings } from '../lib/store.ts'
+import { PERSONAS, defaultVoiceFor } from '../lib/persona.ts'
 
 const GRADES = ['الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس']
 
 const digits = (s: string) => s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/\D/g, '').slice(0, 6)
 
-/** أول تشغيل: ولي الأمر هو اللي بيحضّر التطبيق — رقم سري، بيانات الطفل، ومفتاح مجاني اختياري. */
+/** أول تشغيل: ولي الأمر هو اللي بيحضّر التطبيق — رقم سري، شخصية الطفل، ومفتاح مجاني اختياري. */
 export default function Wizard({ initial, onDone }: { initial: Settings; onDone: (s: Settings) => void }) {
   const [pin, setPin] = useState(initial.parentPin)
-  const [name, setName] = useState(initial.childName)
   const [grade, setGrade] = useState(initial.grade)
   const [gender, setGender] = useState<Gender>(initial.gender)
   const [key, setKey] = useState(initial.geminiKey)
   const [error, setError] = useState('')
 
+  const persona = PERSONAS[gender === 'm' ? 'roy' : 'lily']
+
+  const pickGender = (next: Gender) => {
+    setGender(next)
+    setError('')
+  }
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (pin.length < 4) return setError('رقم ولي الأمر لازم يكون ٤ أرقام على الأقل.')
-    if (name.trim().length < 2) return setError('اكتب اسم الطفل (حرفين على الأقل).')
     setError('')
-    onDone({ childName: name.trim(), grade, gender, parentPin: pin, geminiKey: key.trim(), voice: initial.voice })
+    onDone({
+      childName: persona.name,
+      grade,
+      gender,
+      parentPin: pin,
+      geminiKey: key.trim(),
+      voice: defaultVoiceFor(gender),
+    })
   }
 
   return (
@@ -40,10 +53,35 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
         placeholder="٤ أرقام"
       />
 
-      <label className="label" htmlFor="name">
-        اسم الطالب (الطالبة)
-      </label>
-      <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="مثلاً: ليلي أو روي" />
+      <span className="label">مين الطالب؟</span>
+      <div className="chips">
+        <button
+          type="button"
+          className={`chip ${gender === 'f' ? 'on' : ''}`}
+          onClick={() => pickGender('f')}
+          aria-pressed={gender === 'f'}
+        >
+          طالبة
+        </button>
+        <button
+          type="button"
+          className={`chip ${gender === 'm' ? 'on' : ''}`}
+          onClick={() => pickGender('m')}
+          aria-pressed={gender === 'm'}
+        >
+          طالب
+        </button>
+      </div>
+
+      <div className="persona-line">
+        <img src={persona.avatar} alt={persona.name} />
+        <div>
+          <strong>{persona.name}</strong>
+          <span className="note small">
+            {gender === 'f' ? 'هي رفيقتك بالدراسة، وصوتها بنت.' : 'هو رفيقك بالدراسة، وصوته صبي.'}
+          </span>
+        </div>
+      </div>
 
       <span className="label">الصف</span>
       <div className="chips">
@@ -52,16 +90,6 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
             {g}
           </button>
         ))}
-      </div>
-
-      <span className="label">الجنس</span>
-      <div className="chips">
-        <button type="button" className={`chip ${gender === 'm' ? 'on' : ''}`} onClick={() => setGender('m')}>
-          طالب
-        </button>
-        <button type="button" className={`chip ${gender === 'f' ? 'on' : ''}`} onClick={() => setGender('f')}>
-          طالبة
-        </button>
       </div>
 
       <label className="label" htmlFor="key">

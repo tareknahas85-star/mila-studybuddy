@@ -27,7 +27,7 @@ export default function Library({ lessons, books, onOpenLesson, onDeleteLesson }
           <span className="pill">{lessons.length} درس محفوظ</span>
         </div>
         <p className="note small">
-          كل درس حلّيته، وكل صورة حلّلتها ميلا، محفوظين هون على الجهاز. بترجع لأي درس وقت ما بدك.
+          كل درس حلّيته، وكل صورة حلّلناها، محفوظين هون على الجهاز. بترجع لأي درس وقت ما بدك.
         </p>
       </section>
 

@@ -11,7 +11,7 @@ export interface Settings {
   parentPin: string
   /** مفتاح جيميني المجاني: ولي الأمر بيحطه مرة واحدة، وبيضل على الجهاز. */
   geminiKey: string
-  /** صوت ميلا الطبيعي (Gemini TTS) — اسم الصوت من مكتبة جوجل. */
+  /** صوت الشخصية الطبيعي (Gemini TTS) — اسم الصوت من مكتبة جوجل. */
   voice: string
 }
 
@@ -72,7 +72,7 @@ export interface Memory {
   signals: Record<SignalKind, number>
   subjects: Record<string, SubjectStat>
   topics: string[]
-  /** ملاحظة ميلا لولي الأمر (بتتولّد من جيميني لما يطلبها). */
+  /** ملاحظة الشخصية لولي الأمر (بتتولّد من جيميني لما يطلبها). */
   insight: string
   insightAt: number
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import Mila from './components/Mila.tsx'
+import Buddy from './components/Buddy.tsx'
 import Wizard from './components/Wizard.tsx'
 import Lock from './components/Lock.tsx'
 import Home from './components/Home.tsx'
@@ -26,6 +26,7 @@ import {
 } from './lib/store.ts'
 import type { LessonDraft } from './lib/ai.ts'
 import { removeImage } from './lib/archive.ts'
+import { personaFor } from './lib/persona.ts'
 
 type Tab = 'ask' | 'library' | 'parent'
 type View = { kind: 'home' } | { kind: 'book'; id: string } | { kind: 'lesson'; id: string }
@@ -65,13 +66,14 @@ export default function App() {
   const [view, setView] = useState<View>({ kind: 'home' })
   const [mood, setMood] = useState<Mood>('idle')
   const [parentOpen, setParentOpen] = useState(false)
+  const persona = personaFor(settings)
 
   // كل شي بينحفظ على الجهاز أول بأول.
   useEffect(() => saveBooks(books), [books])
   useEffect(() => saveLessons(lessons), [lessons])
   useEffect(() => saveMemory(memory), [memory])
 
-  // ميلا بترجع لوجهها الهادي بعد شوي من التفاعل.
+  // الشخصية بترجع لوجهها الهادي بعد شوي من التفاعل.
   useEffect(() => {
     if (mood === 'idle') return
     const timer = window.setTimeout(() => setMood('idle'), 3000)
@@ -150,7 +152,6 @@ export default function App() {
   if (settings.childName === '' || settings.parentPin === '') {
     return (
       <div className="shell">
-        <Mila mood="idle" line="مرحبا! خلينا نجهّز الدفتر سوا ✨" />
         <Wizard initial={settings} onDone={applySettings} />
       </div>
     )
@@ -163,11 +164,12 @@ export default function App() {
     <div className="shell">
       <header className="topbar">
         <span className="pill brand">StudyBuddy</span>
-        <span className="hi">أهلاً {settings.childName} 🌟</span>
+        <span className="hi">أهلاً {persona.name} 🌟</span>
         <span className="stars">⭐ {progress.stars}</span>
       </header>
 
-      <Mila
+      <Buddy
+        persona={persona}
         mood={mood}
         line={
           mood === 'think'

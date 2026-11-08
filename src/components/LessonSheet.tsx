@@ -3,6 +3,7 @@ import type { Lesson, Mood, SignalKind } from '../lib/store.ts'
 import { prettyDate } from '../lib/img.ts'
 import { speak, speechReady, stopSpeaking } from '../lib/speech.ts'
 import { naturalReady, primeVoice, speakNatural, stopNatural } from '../lib/tts.ts'
+import { voicePersonaFor } from '../lib/persona.ts'
 import Shot from './Shot.tsx'
 
 type Mode = 'text' | 'voice' | 'video'
@@ -15,11 +16,11 @@ interface Props {
   onMood: (m: Mood) => void
   /** مفتاح جيميني (صوت طبيعي) — فاضي يعني صوت الجهاز. */
   apiKey: string
-  /** اسم صوت ميلا من مكتبة جوجل. */
+  /** اسم صوت الشخصية من مكتبة جوجل. */
   voice: string
 }
 
-/** الدرس: شرح مكتوب، صوت ميلا الطبيعي بالشامي، فيديو، تلميحات، وبعدها أسئلة خيارات. */
+/** الدرس: شرح مكتوب، صوت الشخصية الطبيعي بالشامي، فيديو، تلميحات، وبعدها أسئلة خيارات. */
 export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood, apiKey, voice }: Props) {
   const [mode, setMode] = useState<Mode>('text')
   const [playing, setPlaying] = useState(false)
@@ -49,6 +50,8 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
   const item = lesson.quiz[index]
   const caseTotal = lesson.quiz.length
   const lessonText = [lesson.summary, ...lesson.steps].filter((p) => p !== '').join('. ')
+  const speaker = voicePersonaFor(voice)
+  const fem = speaker.gender === 'f'
 
   const speakLesson = () => {
     if (playing) {
@@ -78,7 +81,7 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
         setPreparing(false)
         setPlaying(false)
         setDeviceOffer(speechReady())
-        setVoiceNote('صوت ميلا الطبيعي ما كان جاهز هلق. جرّب مرة تانية، أو اسمع بصوت الجهاز.')
+        setVoiceNote(`صوت ${speaker.name} الطبيعي ما كان جاهز هلق. جرّب مرة تانية، أو اسمع بصوت الجهاز.`)
       }
       speakNatural(
         { text: lessonText, apiKey, voice },
@@ -103,7 +106,7 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
 
   const playDeviceVoice = () => {
     if (!speechReady()) return
-    setVoiceNote('عم نسمّعك بصوت الجهاز — صوت ميلا الطبيعي بدو مفتاح شغّال ونت.')
+    setVoiceNote(`عم نسمّعك بصوت الجهاز — صوت ${speaker.name} الطبيعي بدو مفتاح شغّال ونت.`)
     setDeviceOffer(false)
     setPlaying(true)
     speak(lessonText, () => setPlaying(false))
@@ -240,7 +243,7 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
               onClick={speakLesson}
               disabled={!naturalReady(apiKey) && !speechReady()}
             >
-              {playing ? (preparing ? '⏳ ميلا عم تحضّر صوتها…' : '⏸️ وقّف') : '▶️ اسمع الشرح'}
+              {playing ? (preparing ? `⏳ ${speaker.name} ${fem ? 'عم تحضّر صوتها' : 'عم يحضّر صوته'}…` : '⏸️ وقّف') : '▶️ اسمع الشرح'}
             </button>
             {deviceOffer && (
               <button className="ghost" type="button" onClick={playDeviceVoice}>
@@ -250,10 +253,10 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
             {voiceNote && <p className="note small">{voiceNote}</p>}
             <p className="note small">
               {naturalReady(apiKey)
-                ? 'ميلا بتحكي بصوتها الطبيعي باللهجة الشامية. أول مرة بتاخد كام ثانية لتجهّز الصوت، وبعدها بينحفظ على الجهاز وبيشتغل بلا نت.'
+                ? `${speaker.name} ${fem ? 'بتحكي بصوتها' : 'بيحكي بصوته'} الطبيعي باللهجة الشامية. أول مرة بتاخد كام ثانية لتجهّز الصوت، وبعدها بينحفظ على الجهاز وبيشتغل بلا نت.`
                 : speechReady()
-                  ? 'ميلا بتحكي بصوت التلفون. ضيف مفتاح جيميني بقسم الأهل لتسمع صوتها الطبيعي.'
-                  : 'جهازك ما فيه قارئ صوتي. ضيف مفتاح جيميني بقسم الأهل لتسمع صوت ميلا الطبيعي.'}
+                  ? `${speaker.name} ${fem ? 'بتحكي بصوت التلفون' : 'بيحكي بصوت التلفون'}. ضيف مفتاح جيميني بقسم الأهل لتسمع ${fem ? 'صوتها' : 'صوته'} الطبيعي.`
+                  : `جهازك ما فيه قارئ صوتي. ضيف مفتاح جيميني بقسم الأهل لتسمع صوت ${speaker.name} الطبيعي.`}
             </p>
             <p className="note">{lesson.summary}</p>
           </div>
@@ -261,7 +264,7 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
 
         {mode === 'video' && (
           <div className="voice">
-            <p className="note">بدك تشوف نفس الدرس مشروح بالحركة؟ ميلا دوّرتلك على فيديو قصير على يوتيوب:</p>
+            <p className="note">بدك تشوف نفس الدرس مشروح بالحركة؟ دوّرنا لك على فيديو قصير على يوتيوب:</p>
             <a
               className="primary"
               href={`https://www.youtube.com/results?search_query=${encodeURIComponent(lesson.videoQuery || `${lesson.subject} ${lesson.title}`)}`}

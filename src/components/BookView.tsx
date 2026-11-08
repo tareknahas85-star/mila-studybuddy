@@ -132,7 +132,7 @@ export default function BookView({
     setNotice(
       n === 1
         ? 'حفظنا درس واحد بالأرشيف، والصورة محفوظة معه 🗂️'
-        : `ميلا لقيت ${n} دروس بالصفحة وحفظتهم كلهم مع الصورة 🗂️`,
+        : `لقينا ${n} دروس بالصفحة وحفظناهم كلهم مع الصورة 🗂️`,
     )
   }
 
@@ -170,14 +170,14 @@ export default function BookView({
 
       <section className="card">
         <h3 className="small-title">صوّر صفحة 📸</h3>
-        <p className="note small">من الكتاب، أو دفترك، أو السبورة — ميلا بتقرا كل شي وبترتّب الدروس.</p>
+        <p className="note small">من الكتاب، أو دفترك، أو السبورة — منقرا كل شي ومنرتّب الدروس.</p>
 
         {shot ? (
           <>
             <img className="preview" src={shot.url} alt="الصفحة اللي صوّرتها" />
             <div className="shot-actions">
               <button className="primary" type="button" onClick={analyze} disabled={reading}>
-                {reading ? 'ميلا عم تقرا الصفحة… ⏳' : 'حلّل الصفحة ✨'}
+                {reading ? 'عم نقرا الصفحة… ⏳' : 'حلّل الصفحة ✨'}
               </button>
               <button className="ghost" type="button" onClick={dropShot} disabled={reading}>
                 غيّر الصورة
