@@ -108,6 +108,9 @@ const MIGRATED_KEY = 'mila.profiles.v1'
 const STUDENT_KEY = (profile: ProfileId): string => `mila.student.v1.${profile}`
 const dataKey = (base: string, profile: ProfileId): string => `${base}.${profile}`
 
+/** نسخة ملف الاحتياطي. */
+export const BACKUP_VERSION = 1
+
 export const DEFAULT_SETTINGS: Settings = {
   childName: '',
   grade: 'الصف الخامس',
@@ -389,22 +392,32 @@ export function weeklyReport(m: Memory): string {
   return parts.join(" \n ")
 }
 
-/**Export all user data as JSON for backup. */
+/**
+ * نسخة احتياطية لبيانات الطالب (دروس، كتب، ذاكرة، نجوم).
+ * ملاحظة: ما بتحتوي رقم الأهل ولا مفتاح جيميني — هدول بيضلوا على الجهاز.
+ * ملاحظة: صور الصفحات (IndexedDB) ما بتنحفظ هون، بس الدروس بتضل نصوص كاملة.
+ */
 export function exportData(profile: ProfileId): string {
+  const parse = (key: string): unknown => {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
   try {
-    const progress = localStorage.getItem(dataKey(PROGRESS_KEY, profile))
-    const books = localStorage.getItem(dataKey(BOOKS_KEY, profile))
-    const lessons = localStorage.getItem(dataKey(LESSONS_KEY, profile))
-    const memory = localStorage.getItem(dataKey(MEMORY_KEY, profile))
-    const student = localStorage.getItem(STUDENT_KEY(profile))
-    const settings = localStorage.getItem(SETTINGS_KEY)
     const data = {
-      progress: progress ? JSON.parse(progress) : { stars: 0, lessonsDone: 0, days: [], badgeDates: {} },
-      books: books ? JSON.parse(books) : [],
-      lessons: lessons ? JSON.parse(lessons) : [],
-      memory: memory ? JSON.parse(memory) : DEFAULT_MEMORY,
-      student: student ? JSON.parse(student) : { childName: '', grade: 'al الصف الخامس', gender: 'f', voice: 'Sulafat' },
-      settings: settings ? JSON.parse(settings) : { childName: '', grade: 'al الصف الخامس', gender: 'f', parentPin: '', geminiKey: '', profile: 'lily' },
+      app: 'mila',
+      version: BACKUP_VERSION,
+      profile,
+      exportedAt: new Date().toISOString(),
+      student: parse(STUDENT_KEY(profile)),
+      progress: parse(dataKey(PROGRESS_KEY, profile)),
+      books: parse(dataKey(BOOKS_KEY, profile)) ?? [],
+      lessons: parse(dataKey(LESSONS_KEY, profile)) ?? [],
+      memory: parse(dataKey(MEMORY_KEY, profile)) ?? DEFAULT_MEMORY,
     }
     return JSON.stringify(data)
   } catch {
@@ -412,18 +425,25 @@ export function exportData(profile: ProfileId): string {
   }
 }
 
-/**استيراد البيانات من ملف backup.JSON. */
+/**
+ * استيراد نسخة احتياطية للطالب المفتوح حاليًا.
+ * أي إعدادات ولي الأمر داخل الملف بيتجاهلها: الاستعادة ما بتقدر تغيّر رقم الأهل أو المفتاح.
+ */
 export function importData(data: string, profile: ProfileId): boolean {
   try {
-    const parsed = JSON.parse(data)
-    if (!parsed || typeof parsed !== "object") return false
-    const { progress, books, lessons, memory, student, settings } = parsed
-    if (progress) write(dataKey(PROGRESS_KEY, profile), progress)
-    if (books) write(dataKey(BOOKS_KEY, profile), books.slice(0, 60))
-    if (lessons) write(dataKey(LESSONS_KEY, profile), lessons.slice(0, 300))
-    if (memory) write(dataKey(MEMORY_KEY, profile), { ...DEFAULT_MEMORY, ...memory })
-    if (student) write(STUDENT_KEY(profile), student)
-    if (settings) write(SETTINGS_KEY, settings)
+    const parsed: unknown = JSON.parse(data)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false
+    const b = parsed as Record<string, unknown>
+    const known = ['progress', 'books', 'lessons', 'memory', 'student']
+    if (!known.some((k) => k in b)) return false
+
+    if (b.progress && typeof b.progress === 'object') write(dataKey(PROGRESS_KEY, profile), b.progress)
+    if (Array.isArray(b.books)) write(dataKey(BOOKS_KEY, profile), b.books.slice(0, 60))
+    if (Array.isArray(b.lessons)) write(dataKey(LESSONS_KEY, profile), b.lessons.slice(0, 300))
+    if (b.memory && typeof b.memory === 'object') {
+      write(dataKey(MEMORY_KEY, profile), { ...DEFAULT_MEMORY, ...(b.memory as Partial<Memory>) })
+    }
+    if (b.student && typeof b.student === 'object') write(STUDENT_KEY(profile), b.student)
     return true
   } catch {
     return false
