@@ -9,9 +9,11 @@ const STORE = 'audio'
 const MAX_CACHED = 40
 
 /** نسخة وصف الصوت: إذا تغيّر الوصف، الصوت المخزّن القديم ما بينستعمل. */
-const STYLE_VERSION = 1
-const STYLE =
+const STYLE_VERSION = 2
+const STYLE_F =
   'تتكلم باللهجة السورية الشامية الدارجة، بصوت دافئ حنون ومرح، كأنها أخت كبيرة عم تحكي لطفلها بحماس هادي، واضحة وبطيئة شوي، مع وقفات قصيرة بين الجمل'
+const STYLE_M =
+  'يتكلم باللهجة السورية الشامية الدارجة، بصوت شاب ودود ومرح، كأنه أخ كبير عم يساعد أخوه الصغير بحماس هادي، واضح وبطيء شوي، مع وقفات قصيرة بين الجمل'
 
 export interface VoiceOption {
   id: string
@@ -30,6 +32,12 @@ export const VOICES: VoiceOption[] = [
 ]
 
 export const DEFAULT_VOICE = 'Sulafat'
+
+/** وصف اللهجة بيناسب جنس الصوت: الأنثوي للبنات والذكري للصبيان. */
+function styleFor(voice: string): string {
+  const option = VOICES.find((v) => v.id === voice)
+  return option?.group === 'صبي' ? STYLE_M : STYLE_F
+}
 
 /** جملة قصيرة لتجربة الصوت من قسم الأهل. */
 export const VOICE_SAMPLE = 'أهلين! أنا ميلا، رفيقتك بالدراسة. يلا نحلّ سوا ونتعلّم شي جديد اليوم.'
@@ -211,7 +219,7 @@ async function generate(text: string, opts: SpeakOptions): Promise<ArrayBuffer> 
             {
               type: 'user_input',
               content: [
-                { type: 'text', text, annotations: [{ type: 'speech_metadata', style: STYLE }] },
+                { type: 'text', text, annotations: [{ type: 'speech_metadata', style: styleFor(opts.voice) }] },
               ],
             },
           ],

@@ -24,6 +24,8 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
   const [mode, setMode] = useState<Mode>('text')
   const [playing, setPlaying] = useState(false)
   const [preparing, setPreparing] = useState(false)
+  const [voiceNote, setVoiceNote] = useState('')
+  const [deviceOffer, setDeviceOffer] = useState(false)
   const [revealed, setRevealed] = useState(0)
   const [showPage, setShowPage] = useState(false)
   const [index, setIndex] = useState(0)
@@ -46,6 +48,7 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
 
   const item = lesson.quiz[index]
   const caseTotal = lesson.quiz.length
+  const lessonText = [lesson.summary, ...lesson.steps].filter((p) => p !== '').join('. ')
 
   const speakLesson = () => {
     if (playing) {
@@ -55,44 +58,55 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
       setPreparing(false)
       return
     }
-    const text = [lesson.summary, ...lesson.steps].filter((p) => p !== '').join('. ')
-    if (text.trim() === '') return
+    if (lessonText.trim() === '') return
     if (!naturalReady(apiKey) && !speechReady()) return
+    setVoiceNote('')
+    setDeviceOffer(false)
     setPlaying(true)
     onSignal('voice')
     onMood('laugh')
 
-    // الصوت الطبيعي من جيميني، وإذا ما زبط منرجّع لصوت الجهاز.
+    // الصوت الطبيعي من جيميني. إذا فشل ما منبدّل بصوت الجهاز بصمت —
+    // منعرض رسالة، والطفل بيختار بنفسه إذا بدو يسمع بصوت الجهاز.
     if (naturalReady(apiKey)) {
       setPreparing(true)
       primeVoice()
-      let fellBack = false
-      const fallback = (): void => {
-        if (fellBack) return
-        fellBack = true
+      let failed = false
+      const failedToSpeak = (): void => {
+        if (failed) return
+        failed = true
         setPreparing(false)
-        if (!speechReady()) {
-          setPlaying(false)
-          return
-        }
-        speak(text, () => setPlaying(false))
+        setPlaying(false)
+        setDeviceOffer(speechReady())
+        setVoiceNote('صوت ميلا الطبيعي ما كان جاهز هلق. جرّب مرة تانية، أو اسمع بصوت الجهاز.')
       }
       speakNatural(
-        { text, apiKey, voice },
+        { text: lessonText, apiKey, voice },
         {
-          onStart: () => setPreparing(false),
+          onStart: () => {
+            setPreparing(false)
+            setVoiceNote('')
+          },
           onEnd: () => {
             setPlaying(false)
             setPreparing(false)
           },
-          onError: fallback,
+          onError: failedToSpeak,
         },
       )
       return
     }
 
     setPreparing(false)
-    speak(text, () => setPlaying(false))
+    speak(lessonText, () => setPlaying(false))
+  }
+
+  const playDeviceVoice = () => {
+    if (!speechReady()) return
+    setVoiceNote('عم نسمّعك بصوت الجهاز — صوت ميلا الطبيعي بدو مفتاح شغّال ونت.')
+    setDeviceOffer(false)
+    setPlaying(true)
+    speak(lessonText, () => setPlaying(false))
   }
 
   const revealNext = () => {
@@ -228,6 +242,12 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
             >
               {playing ? (preparing ? '⏳ ميلا عم تحضّر صوتها…' : '⏸️ وقّف') : '▶️ اسمع الشرح'}
             </button>
+            {deviceOffer && (
+              <button className="ghost" type="button" onClick={playDeviceVoice}>
+                🔈 اسمع بصوت الجهاز
+              </button>
+            )}
+            {voiceNote && <p className="note small">{voiceNote}</p>}
             <p className="note small">
               {naturalReady(apiKey)
                 ? 'ميلا بتحكي بصوتها الطبيعي باللهجة الشامية. أول مرة بتاخد كام ثانية لتجهّز الصوت، وبعدها بينحفظ على الجهاز وبيشتغل بلا نت.'

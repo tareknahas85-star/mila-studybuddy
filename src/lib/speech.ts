@@ -79,7 +79,7 @@ async function speakNative(text: string, onDone?: () => void): Promise<void> {
       text,
       lang,
       rate: 0.95,
-      pitch: 1.15,
+      pitch: 1,
       volume: 1,
       ...(arabic >= 0 ? { voice: arabic } : {}),
       category: 'ambient',
@@ -127,7 +127,7 @@ export function speak(text: string, onDone?: () => void): void {
     if (voice) utter.voice = voice
     utter.lang = voice?.lang ?? 'ar-SA'
     utter.rate = 0.94
-    utter.pitch = 1.15
+    utter.pitch = 1
     utter.volume = 1
     utter.onerror = finish
     if (index === pieces.length - 1) utter.onend = finish
