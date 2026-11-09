@@ -232,6 +232,7 @@ export default function App() {
             onMood={setMood}
             apiKey={settings.geminiKey}
             voice={settings.voice || 'Sulafat'}
+            assistantName={settings.assistantName}
           />
         ) : activeBook ? (
           <BookView
@@ -287,7 +288,7 @@ export default function App() {
               setParentOpen(false)
               goTab('ask')
             }}
-            onShareWeeklyReport={(profile: 'lily' | 'roy') => {
+            onShareWeeklyReport={(profile: string) => {
             const memory = loadMemory(profile)
             const report = weeklyReport(memory)
             const whatsappText = encodeURIComponent(report || 'لا توجد بيانات كافية لهذا الأسبوع')

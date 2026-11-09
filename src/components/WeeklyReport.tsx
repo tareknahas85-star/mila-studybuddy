@@ -1,7 +1,7 @@
-import { loadMemory, weeklyReport } from '../lib/store.ts'
+import { loadMemory, loadSettings, weeklyReport } from '../lib/store.ts'
 
 interface Props {
-  profile: 'lily' | 'roy'
+  profile: string
   onShare: (text: string) => void
 }
 
@@ -20,7 +20,7 @@ export default function WeeklyReport({ profile, onShare }: Props) {
           </button>
         </div>
         <p className="note small">
-          تقرير مفصل لنشاط هذا الأسبوع بناءً على بيانات ذاكرة {profile === 'lily' ? 'ليلي' : 'روي'}.
+          تقرير مفصل لنشاط هذا الأسبوع بناءً على بيانات ذاكرة {loadSettings(profile).childName || 'الطالب'}.
         </p>
       </section>
 

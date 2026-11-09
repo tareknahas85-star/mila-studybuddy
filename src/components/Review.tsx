@@ -1,7 +1,7 @@
 import { loadLessons } from '../lib/store.ts'
 
 interface Props {
-  profile: 'lily' | 'roy'
+  profile: string
   onDone: (question: string, correct: boolean) => void
 }
 

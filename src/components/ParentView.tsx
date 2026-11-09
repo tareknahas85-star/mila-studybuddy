@@ -23,7 +23,7 @@ interface Props {
   onSave: (s: Settings) => void
   onMemory: (m: Memory) => void
   onReset: () => void
-  onShareWeeklyReport: (profile: 'lily' | 'roy') => void
+  onShareWeeklyReport: (profile: string) => void
 }
 
 const SIGNAL_LABELS: Array<{ key: keyof Memory['signals']; icon: string; label: string }> = [
@@ -41,6 +41,7 @@ const MAX_BACKUP_BYTES = 150 * 1024 * 1024
 export default function ParentView({ settings, progress, memory, onSave, onMemory, onReset }: Props) {
   const [tab, setTab] = useState<'over' | 'memory'>('over')
   const [key, setKey] = useState(settings.geminiKey)
+  const [assistant, setAssistant] = useState(settings.assistantName)
   const [notes, setNotes] = useState(memory.notes)
   const [saved, setSaved] = useState('')
   const [interest, setInterest] = useState('')
@@ -56,7 +57,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   const [backupError, setBackupError] = useState('')
 
   const persona = personaFor(settings)
-  const voicePersona = voicePersonaFor(voice)
+  const voicePersona = voicePersonaFor(voice, assistant)
   const fem = persona.gender === 'f'
 
   const flash = (msg: string) => {
@@ -65,7 +66,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   }
 
   const saveSettings = () => {
-    onSave({ ...settings, childName: persona.name, geminiKey: key.trim(), voice })
+    onSave({ ...settings, assistantName: assistant.trim() || persona.name, geminiKey: key.trim(), voice })
     flash('انحفظ ✅')
   }
 
@@ -77,7 +78,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
       return
     }
     if (key.trim() === '') {
-      setSampleMsg('حطّ مفتاح OpenRouter أول شي، وبعدها جرّب الصوت 🔑')
+      setSampleMsg('حطّ مفتاح جيميني أول شي، وبعدها جرّب الصوت 🔑')
       return
     }
     primeVoice()
@@ -251,23 +252,35 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
               <img src={persona.avatar} alt={persona.name} />
               <div>
                 <strong>{persona.name}</strong>
-                <span className="note small">أفاتار الطالب واسمه بيضلوا ثابتين</span>
+                <span className="note small">الأفاتار ثابت، والاسم بتغيّره من الحقل اللي تحت</span>
               </div>
             </div>
 
+            <label className="label" htmlFor="p-assistant">
+              اسم الشخصية المساعدة
+            </label>
+            <input
+              id="p-assistant"
+              className="input"
+              value={assistant}
+              onChange={(e) => setAssistant(e.target.value)}
+              maxLength={20}
+              autoComplete="off"
+            />
+
             <label className="label" htmlFor="p-key">
-              مفتاح OpenRouter المجاني
+              مفتاح جيميني المجاني
             </label>
             <input
               id="p-key"
               className="input ltr"
               value={key}
               onChange={(e) => setKey(e.target.value)}
-              placeholder="sk-or-v1-..."
+              placeholder="AIza..."
               autoComplete="off"
             />
             <p className="note small">
-              من openrouter.ai/keys — فيه موديلات مجانية. بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
+              من Google AI Studio — مجاني. بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
             </p>
             <p className="note small" role="note">
               🔒 المفتاح مشفّر على الجهاز (AES-GCM)، ومفتاح التشفير نفسه ما بينقرأ ولا بينصدّر. النسخ الاحتياطية ما فيها المفتاح.
@@ -301,7 +314,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
             </button>
             {sampleMsg && <p className={sampleBusy ? 'note small' : 'ok'}>{sampleMsg}</p>}
             <p className="note small">
-              الصوت الطبيعي (Gemini TTS) ما بيشتغل مع مفتاح OpenRouter، وبيرجع لصوت الجهاز. اختار اللي بيعجبك وبيصير صوت {voicePersona.name} بكل الدروس.
+              الصوت الطبيعي من جيميني بلهجة شامية دافية — اختار اللي بيعجبك وبيصير صوت {voicePersona.name} بكل الدروس.
             </p>
 
             {saved && <p className="ok">{saved}</p>}
@@ -507,7 +520,7 @@ export default function ParentView({ settings, progress, memory, onSave, onMemor
   )
 }
 
-function onShareWeeklyReport(profile: "lily" | "roy") {
+function onShareWeeklyReport(profile: string) {
   const memory = loadMemory(profile)
   const report = weeklyReport(memory)
   const whatsappText = encodeURIComponent(report || "لا توجد بيانات كافية لهذا الأسبوع")

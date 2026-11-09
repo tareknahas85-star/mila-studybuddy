@@ -18,10 +18,12 @@ interface Props {
   apiKey: string
   /** اسم صوت الشخصية من مكتبة جوجل. */
   voice: string
+  /** اسم الشخصية المساعدة اللي ولي الأمر سمّاها. */
+  assistantName?: string
 }
 
 /** الدرس: شرح مكتوب، صوت الشخصية الطبيعي بالشامي، فيديو، تلميحات، وبعدها أسئلة خيارات. */
-export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood, apiKey, voice }: Props) {
+export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood, apiKey, voice, assistantName }: Props) {
   const [mode, setMode] = useState<Mode>('text')
   const [playing, setPlaying] = useState(false)
   const [preparing, setPreparing] = useState(false)
@@ -50,7 +52,7 @@ export default function LessonSheet({ lesson, onBack, onFinish, onSignal, onMood
   const item = lesson.quiz[index]
   const caseTotal = lesson.quiz.length
   const lessonText = [lesson.summary, ...lesson.steps].filter((p) => p !== '').join('. ')
-  const speaker = voicePersonaFor(voice)
+  const speaker = voicePersonaFor(voice, assistantName)
   const fem = speaker.gender === 'f'
 
   const speakLesson = () => {
