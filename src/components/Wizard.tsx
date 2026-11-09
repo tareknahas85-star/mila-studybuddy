@@ -1,38 +1,45 @@
 import { useState } from 'react'
 import type { Gender, Settings } from '../lib/store.ts'
-import { PERSONAS, defaultVoiceFor } from '../lib/persona.ts'
+import { uid } from '../lib/store.ts'
+import { defaultAssistantFor, defaultVoiceFor, personaFor } from '../lib/persona.ts'
 
 const GRADES = ['الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس']
 
 const digits = (s: string) => s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/\D/g, '').slice(0, 6)
 
-/** أول تشغيل: ولي الأمر هو اللي بيحضّر التطبيق — رقم سري، شخصية الطفل، ومفتاح مجاني اختياري. */
+/** أول تشغيل: ولي الأمر بيحضّر التطبيق — اسم الطالب، رقم سري، اسم الشخصية، ومفتاح مجاني اختياري. */
 export default function Wizard({ initial, onDone }: { initial: Settings; onDone: (s: Settings) => void }) {
+  const [childName, setChildName] = useState(initial.childName)
   const [pin, setPin] = useState(initial.parentPin)
   const [grade, setGrade] = useState(initial.grade)
   const [gender, setGender] = useState<Gender>(initial.gender)
+  const [assistant, setAssistant] = useState(initial.assistantName || defaultAssistantFor(initial.gender))
   const [key, setKey] = useState(initial.geminiKey)
   const [error, setError] = useState('')
 
-  const persona = PERSONAS[gender === 'm' ? 'roy' : 'lily']
+  const persona = personaFor({ gender, assistantName: assistant })
 
   const pickGender = (next: Gender) => {
+    // لو اسم الشخصية كان الاسم الافتراضي، بنبدّله حسب الجنس الجديد.
+    if (assistant === defaultAssistantFor(gender)) setAssistant(defaultAssistantFor(next))
     setGender(next)
     setError('')
   }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (childName.trim().length < 2) return setError('اكتب اسم الطالب (حرفين على الأقل).')
     if (pin.length < 4) return setError('رقم ولي الأمر لازم يكون ٤ أرقام على الأقل.')
     setError('')
     onDone({
-      childName: persona.name,
+      childName: childName.trim(),
+      assistantName: assistant.trim() || defaultAssistantFor(gender),
       grade,
       gender,
       parentPin: pin,
       geminiKey: key.trim(),
       voice: defaultVoiceFor(gender),
-      profile: gender === 'm' ? 'roy' : 'lily',
+      profile: uid(),
     })
   }
 
@@ -40,6 +47,18 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
     <form className="card wizard" onSubmit={submit} noValidate>
       <h1 className="title">حضّر التطبيق 🛠️</h1>
       <p className="note">هالشاشة لولي الأمر مرة واحدة بس. بعدها الطالب بيفتح على دفتره، وما بيقدر يغيّر شي.</p>
+
+      <label className="label" htmlFor="child">
+        اسم الطالب
+      </label>
+      <input
+        id="child"
+        className="input"
+        value={childName}
+        onChange={(e) => setChildName(e.target.value)}
+        maxLength={20}
+        autoComplete="off"
+      />
 
       <label className="label" htmlFor="pin">
         رقم ولي الأمر
@@ -56,30 +75,32 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
 
       <span className="label">مين الطالب؟</span>
       <div className="chips">
-        <button
-          type="button"
-          className={`chip ${gender === 'f' ? 'on' : ''}`}
-          onClick={() => pickGender('f')}
-          aria-pressed={gender === 'f'}
-        >
+        <button type="button" className={`chip ${gender === 'f' ? 'on' : ''}`} onClick={() => pickGender('f')} aria-pressed={gender === 'f'}>
           طالبة
         </button>
-        <button
-          type="button"
-          className={`chip ${gender === 'm' ? 'on' : ''}`}
-          onClick={() => pickGender('m')}
-          aria-pressed={gender === 'm'}
-        >
+        <button type="button" className={`chip ${gender === 'm' ? 'on' : ''}`} onClick={() => pickGender('m')} aria-pressed={gender === 'm'}>
           طالب
         </button>
       </div>
+
+      <label className="label" htmlFor="assistant">
+        اسم الشخصية المساعدة
+      </label>
+      <input
+        id="assistant"
+        className="input"
+        value={assistant}
+        onChange={(e) => setAssistant(e.target.value)}
+        maxLength={20}
+        autoComplete="off"
+      />
 
       <div className="persona-line">
         <img src={persona.avatar} alt={persona.name} />
         <div>
           <strong>{persona.name}</strong>
           <span className="note small">
-            {gender === 'f' ? 'هي رفيقتك بالدراسة، وصوتها بنت.' : 'هو رفيقك بالدراسة، وصوته صبي.'}
+            {gender === 'f' ? 'هي رفيقة الطالبة بالدراسة، وصوتها بنت.' : 'هو رفيق الطالب بالدراسة، وصوته صبي.'}
           </span>
         </div>
       </div>
@@ -94,22 +115,26 @@ export default function Wizard({ initial, onDone }: { initial: Settings; onDone:
       </div>
 
       <label className="label" htmlFor="key">
-        مفتاح OpenRouter المجاني
+        مفتاح جيميني المجاني
       </label>
       <input
         id="key"
         className="input ltr"
         value={key}
         onChange={(e) => setKey(e.target.value)}
-        placeholder="sk-or-v1-..."
+        placeholder="AIza..."
         autoComplete="off"
       />
       <p className="note small">
-        من <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer noopener">openrouter.ai/keys</a> — فيه موديلات مجانية.
+        من <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer noopener">Google AI Studio</a> — مجاني.
         المفتاح بيضل على هالجهاز بس، والطالب ما بيشوفه. بدونه البحث وقراءة الصور ما بيشتغلوا.
       </p>
 
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       <button className="primary" type="submit">
         حفظ وفتح الدفتر ✨

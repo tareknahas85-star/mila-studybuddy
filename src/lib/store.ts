@@ -1,16 +1,20 @@
 import { decryptSecret, encryptSecret } from './vault.ts'
 
 // كل شي بينحفظ على جهاز الطفل — ما في سيرفر، ولا حساب، ولا مفتاح بيطلع من الجهاز.
-// كل طالب (ليلي/روي) إله حساب مستقل: إعداداته، نجومه، دروسه، كتبه، وذاكرته.
+// كل طالب إله حساب مستقل: إعداداته، نجومه، دروسه، كتبه، وذاكرته.
 // رقم ولي الأمر ومفتاح جيميني مشتركين بين الطلاب (إعداد ولي الأمر).
 export type Mood = 'idle' | 'think' | 'laugh' | 'tired' | 'proud'
 export type Gender = 'f' | 'm'
-export type ProfileId = 'lily' | 'roy'
+/** معرّف الطالب: 'lily' و'roy' للحسابات القديمة، وغيرها رقم عشوائي. */
+export type ProfileId = string
 
-export const PROFILES: ProfileId[] = ['lily', 'roy']
+/** أقصى عدد طلاب على الجهاز. */
+export const MAX_STUDENTS = 6
 
 export interface Settings {
   childName: string
+  /** اسم الشخصية المساعدة — ولي الأمر بيسمّيها. */
+  assistantName: string
   grade: string
   gender: Gender
   /** رقم ولي الأمر: أول من يفتح التطبيق بيحطه، وبعده ما بيقدر الطفل يفوته. */
@@ -26,6 +30,7 @@ export interface Settings {
 /** إعدادات الطالب نفسه (بتنحفظ لحسابه لحالو). */
 export interface Student {
   childName: string
+  assistantName: string
   grade: string
   gender: Gender
   voice: string
@@ -107,15 +112,28 @@ const BOOKS_KEY = 'mila.books.v1'
 const LESSONS_KEY = 'mila.lessons.v1'
 const MEMORY_KEY = 'mila.memory.v1'
 const MIGRATED_KEY = 'mila.profiles.v1'
+const STUDENTS_KEY = 'mila.students.v1'
 
 const STUDENT_KEY = (profile: ProfileId): string => `mila.student.v1.${profile}`
 const dataKey = (base: string, profile: ProfileId): string => `${base}.${profile}`
+
+/** الحسابات القديمة (ليلي/روي) بقيمها الأصلية. */
+const LEGACY_STUDENT: Record<'lily' | 'roy', Student> = {
+  lily: { childName: 'ليلي', assistantName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' },
+  roy: { childName: 'روي', assistantName: 'روي', grade: 'الصف الخامس', gender: 'm', voice: 'Puck' },
+}
+
+function fallbackStudent(profile: ProfileId): Student {
+  if (profile === 'lily' || profile === 'roy') return LEGACY_STUDENT[profile]
+  return { childName: '', assistantName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' }
+}
 
 /** نسخة ملف الاحتياطي. */
 export const BACKUP_VERSION = 1
 
 export const DEFAULT_SETTINGS: Settings = {
   childName: '',
+  assistantName: 'ليلي',
   grade: 'الصف الخامس',
   gender: 'f',
   parentPin: '',
@@ -205,6 +223,20 @@ function write(key: string, value: unknown): void {
   }
 }
 
+/** قائمة الطلاب على الجهاز (بالترتيب). */
+export function listProfiles(): ProfileId[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STUDENTS_KEY) ?? 'null')
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string' && x !== '') : []
+  } catch {
+    return []
+  }
+}
+
+function saveProfiles(ids: ProfileId[]): void {
+  write(STUDENTS_KEY, ids)
+}
+
 /** أول ما يشتغل هالإصدار: بننقل بيانات النسخة القديمة لحساب الطالب الحالي. */
 function migrateProfiles(): void {
   try {
@@ -213,16 +245,14 @@ function migrateProfiles(): void {
     const old = raw ? (JSON.parse(raw) as Partial<Settings>) : null
     if (old) {
       const profile: ProfileId = old.profile === 'roy' || old.gender === 'm' ? 'roy' : 'lily'
-      const fallback: Student =
-        profile === 'roy'
-          ? { childName: 'روي', grade: 'الصف الخامس', gender: 'm', voice: 'Puck' }
-          : { childName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' }
+      const base = LEGACY_STUDENT[profile as 'lily' | 'roy']
       if (!localStorage.getItem(STUDENT_KEY(profile))) {
         write(STUDENT_KEY(profile), {
-          childName: typeof old.childName === 'string' && old.childName.trim() !== '' ? old.childName : fallback.childName,
-          grade: typeof old.grade === 'string' && old.grade !== '' ? old.grade : fallback.grade,
+          childName: typeof old.childName === 'string' && old.childName.trim() !== '' ? old.childName : base.childName,
+          assistantName: base.assistantName,
+          grade: typeof old.grade === 'string' && old.grade !== '' ? old.grade : base.grade,
           gender: old.gender === 'm' ? 'm' : 'f',
-          voice: typeof old.voice === 'string' && old.voice !== '' ? old.voice : fallback.voice,
+          voice: typeof old.voice === 'string' && old.voice !== '' ? old.voice : base.voice,
         })
       }
       for (const base of [PROGRESS_KEY, BOOKS_KEY, LESSONS_KEY, MEMORY_KEY]) {
@@ -236,6 +266,8 @@ function migrateProfiles(): void {
         geminiKey: typeof old.geminiKey === 'string' ? old.geminiKey : '',
         profile,
       })
+      const legacyIds = (['lily', 'roy'] as const).filter((id) => localStorage.getItem(STUDENT_KEY(id)))
+      saveProfiles(legacyIds.length > 0 ? legacyIds : [profile])
     }
     localStorage.setItem(MIGRATED_KEY, '1')
   } catch {
@@ -250,23 +282,18 @@ export function activeProfile(): ProfileId {
     const raw = localStorage.getItem(SETTINGS_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<ParentData>
-      if (parsed.profile === 'roy') return 'roy'
-      if (parsed.profile === 'lily') return 'lily'
+      if (typeof parsed.profile === 'string' && parsed.profile !== '') return parsed.profile
     }
   } catch {
-    // إعدادات تالفة: منرجع ليلي.
+    // إعدادات تالفة: منرجع أول طالب.
   }
-  return 'lily'
+  return listProfiles()[0] ?? 'lily'
 }
 
 export const loadSettings = (profile: ProfileId = activeProfile()): Settings => {
   migrateProfiles()
   const parent = read<ParentData>(SETTINGS_KEY, { parentPin: '', profile })
-  const fallback: Student =
-    profile === 'roy'
-      ? { childName: 'روي', grade: 'الصف الخامس', gender: 'm', voice: 'Puck' }
-      : { childName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' }
-  const student = read<Student>(STUDENT_KEY(profile), fallback)
+  const student = read<Student>(STUDENT_KEY(profile), fallbackStudent(profile))
   return {
     ...student,
     profile,
@@ -278,13 +305,38 @@ export const loadSettings = (profile: ProfileId = activeProfile()): Settings => 
 export const saveSettings = (s: Settings): void => {
   write(STUDENT_KEY(s.profile), {
     childName: s.childName,
+    assistantName: s.assistantName,
     grade: s.grade,
     gender: s.gender,
     voice: s.voice,
   })
+  const ids = listProfiles()
+  if (!ids.includes(s.profile)) saveProfiles([...ids, s.profile].slice(0, MAX_STUDENTS))
   write(SETTINGS_KEY, { parentPin: s.parentPin, profile: s.profile })
   geminiKeyMem = s.geminiKey
   void persistGeminiKey(s.geminiKey)
+}
+
+/** بيضيف طالب جديد (اسم + جنس + شخصية مساعدة). بيرجّع معرّفه، أو null إذا وصلنا الحد. */
+export function createStudent(input: {
+  childName: string
+  assistantName: string
+  grade: string
+  gender: Gender
+  voice: string
+}): ProfileId | null {
+  const ids = listProfiles()
+  if (ids.length >= MAX_STUDENTS) return null
+  const id = uid()
+  write(STUDENT_KEY(id), {
+    childName: input.childName.trim(),
+    assistantName: input.assistantName.trim(),
+    grade: input.grade,
+    gender: input.gender,
+    voice: input.voice,
+  })
+  saveProfiles([...ids, id])
+  return id
 }
 
 export const loadProgress = (profile: ProfileId = activeProfile()): Progress =>
