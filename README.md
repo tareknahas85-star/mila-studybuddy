@@ -5,13 +5,13 @@
   <b>رفيق دراسة عربي للأطفال: دفتر محلي، دروس خطوة بخطوة، وقراءة صور الكتب</b>
 </p>
 
+> **Why Layla?** Layla and Roy are the two companions that talk to the child: Layla for a girl, Roy for a boy. The idea is that the child feels they have a patient friend who explains in their own dialect and helps them learn by doing.
+
 <div dir="rtl">
 
 > **ليش اسمها ليلي؟** ليلي وروي هما الشخصيتين اللي بيحكو مع الطفل: ليلي للبنت، وروي للولد. الفكرة إنو الطفل يحس إنو عندو رفيق قريب، بيشرح بصبر وبلهجتو، وبيسأل وبيتعلّم بإيدو.
 
 </div>
-
-> **Why Layla?** Layla and Roy are the two companions that talk to the child: Layla for a girl, Roy for a boy. The idea is that the child feels they have a patient friend who explains in their own dialect and helps them learn by doing.
 
 <p align="center">
   <a href="#english">English</a> &nbsp;·&nbsp; <a href="#بالعربي">بالعربي</a> &nbsp;·&nbsp; 📘 <a href="https://github.com/tareknahas85-star/studybuddy/releases/download/guide-v1.0.0/Studybuddy-Guide.html">Interactive guide · الدليل التفاعلي</a>
