@@ -1,8 +1,11 @@
 // الذكاء الاصطناعي: كل طلب بينطلق من جهاز الطفل لمفتاح ولي الأمر مباشرة —
 // ما في سيرفر بيشوف الصور، ولا مفتاح مشترك بين الناس.
-import type { QuizItem, Settings, Memory } from './store.ts'
+import type { QuizItem, Spot, Student, Memory } from './store.ts'
 import { learningStyle, memoryBrief, subjectReads } from './store.ts'
-import { personaFor } from './persona.ts'
+import { COMPS } from './companions.ts'
+
+/** اللي بيحتاجو جيميني من الطالب: الصف، الاسم، والرفيق اللي بيحكي معو. */
+type Settings = Pick<Student, 'grade' | 'comp' | 'name'>
 
 const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -21,6 +24,7 @@ export interface LessonDraft {
   steps: string[]
   hints: string[]
   quiz: QuizItem[]
+  spot?: Spot
   videoQuery: string
 }
 
@@ -43,8 +47,8 @@ const NO_MODEL = 'موديلات جيميني المجانية تغيّرت وم
 const LOW_QUOTA = 'خلص عدد الطلبات المسموح اليوم. جرّب بكرا 🌙'
 const RATE_LIMIT = 'طلبات كتير بوقت قصير. استنّى دقيقة وجرّب.'
 
-function persona(settings: Pick<Settings, 'grade' | 'gender' | 'voice'>, memory: Memory): string {
-  const p = personaFor(settings)
+function persona(settings: Settings, memory: Memory): string {
+  const p = COMPS[settings.comp] ?? COMPS.buddy
   const fem = p.gender === 'f'
   const brief = memoryBrief(memory)
   return [
@@ -56,6 +60,7 @@ function persona(settings: Pick<Settings, 'grade' | 'gender' | 'voice'>, memory:
       : 'احكي بالعربي العامّي الشامي: حنون، دافي، مرح، وخفيف — متل أخ كبير بيحب يساعد.',
     'خاطب الطالب بصيغة محايدة (المذكر المحايد): "جرّب"، "شوف"، "خليك معي"، "برافو".',
     `ممنوع صيغة المؤنث للطفل (لا "جرّبي" ولا "خليكي") — ${p.name} ${fem ? 'هي الوحيدة المؤنثة' : 'هو الوحيد المذكر'} بالحوار.`,
+    `طبعك: ${p.trait}.`,
     'ممنوع الأسلوب الرسمي الجاف، وممنوع الدروس الطويلة: جمل قصيرة، كل خطوة فكرة وحدة.',
     'سقراطي دائمًا: لمّحي وادّي المفتاح، وما تعطي الجواب النهائي بالشرح — الطفل بيوصل للجواب بأسئلة الخيارات.',
     'راعي عمره ومستواه: ' + (settings.grade || 'ابتدائي') + '. بلا رموز ماركداون (لا * ولا # ولا -).',
@@ -66,11 +71,16 @@ function persona(settings: Pick<Settings, 'grade' | 'gender' | 'voice'>, memory:
     .join('\n')
 }
 
+const LESSON_RULES =
+  'لكل سؤال اختيار: حط بـ"errs" نوع الغلط بكلمتين أو تلاتة (مثلاً "خلط بين البسط والمقام") لكل خيار غلط، وفاضي للخيار الصح. ' +
+  'وإذا الدرس منو حل مسألة (رياضيات أو قواعد)، حط "spot": حل من ٣ لـ ٥ خطوات فيه خطوة وحدة فيها غلطة والطفل بيمسكها ("bad" هو رقم الخطوة الغلط من صفر). وإذا ما بيناسب الدرس خلّي "spot" بـ null.'
+
 const DRAFT_SHAPE =
   '{"title":"عنوان قصير","subject":"رياضيات","summary":"جملة وحدة عن شو الدرس",' +
   '"steps":["خطوة شرح 1","خطوة 2","خطوة 3"],' +
   '"hints":["تلميح 1","تلميح 2","تلميح 3"],' +
-  '"quiz":[{"q":"سؤال بالخيارات","options":["خيار 1","خيار 2","خيار 3"],"answer":0,"why":"ليش هاد الجواب صح"}],' +
+  '"quiz":[{"q":"سؤال بالخيارات","options":["خيار 1","خيار 2","خيار 3"],"answer":0,"why":"ليش هاد الجواب صح","errs":["","نوع الغلط لو اختار الخيار 2","نوع الغلط لو اختار الخيار 3"]}],' +
+  '"spot":{"q":"حليت المسألة بس عملت غلطة! دلّني عليها","lines":["خطوة صح","خطوة صح","خطوة فيها غلطة"],"bad":2,"why":"وين الغلط وكيف بيتصلّح"},' +
   '"videoQuery":"عبارة بحث قصيرة ليوتيوب"}'
 
 interface ApiFailure {
@@ -262,10 +272,22 @@ function toQuiz(value: unknown): QuizItem[] {
     if (q === '' || options.length < 2) continue
     const rawAnswer = typeof item.answer === 'number' ? item.answer : Number(item.answer)
     const answer = Number.isFinite(rawAnswer) ? Math.min(options.length - 1, Math.max(0, Math.floor(rawAnswer))) : 0
-    out.push({ q, options, answer, why: str(item.why, 'فكّر بالخطوات اللي شرحناها سوا.') })
+    const errs = Array.isArray(item.errs)
+      ? item.errs.map((e) => (typeof e === 'string' ? e.trim() : '')).slice(0, options.length)
+      : []
+    out.push({ q, options, answer, why: str(item.why, 'فكّر بالخطوات اللي شرحناها سوا.'), errs })
     if (out.length === 4) break
   }
   return out
+}
+
+function toSpot(value: unknown): Spot | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const raw = value as Record<string, unknown>
+  const lines = strList(raw.lines, 5)
+  const bad = typeof raw.bad === 'number' ? Math.floor(raw.bad) : Number(raw.bad)
+  if (lines.length < 3 || !Number.isFinite(bad) || bad < 0 || bad >= lines.length) return undefined
+  return { q: str(raw.q, 'حليت المسألة بس عملت غلطة! دلّني عليها:'), lines, bad, why: str(raw.why, 'شوف الخطوة اللي علّمنا عليها وجرّب تصلّحها.') }
 }
 
 function toDraft(value: unknown, fallbackTitle: string, fallbackSubject: string): LessonDraft | null {
@@ -282,6 +304,7 @@ function toDraft(value: unknown, fallbackTitle: string, fallbackSubject: string)
     steps,
     hints: strList(raw.hints, 5),
     quiz: toQuiz(raw.quiz),
+    spot: toSpot(raw.spot),
     videoQuery: str(raw.videoQuery, `${subject} ${title}`),
   }
 }
@@ -301,6 +324,7 @@ export async function askMila(input: {
     `سؤال الطفل: "${question}"`,
     'اشرح بشكل مبسّط وممتع، بخطوات قصيرة متسلسلة (٢ إلى ٥ خطوات)، وخلي التلميحات تساعدو يفكّر مش تعطيه الجواب.',
     'الأخير: حط ٢ إلى ٣ أسئلة اختيار من متعدد (٣ خيارات) يحلّها الطفل ليتأكد إنه فهم، ولكل سؤال جواب صح وسبب قصير.',
+    LESSON_RULES,
     'رجّع JSON فقط بهالشكل:',
     DRAFT_SHAPE,
   ]
@@ -338,6 +362,7 @@ export async function analyzePage(input: {
     'رتّب اللي بالصورة لدروس: إذا الصفحة فيها درس واحد رجّع درس واحد، وإذا فيها أكتر رجّع كل الدروس (٣ كحد أقصى).',
     'كل درس: عنوان قصير، ملخص بجملة، شرح بخطوات (٢ إلى ٥)، تلميحات (٢ إلى ٣)، و٢ إلى ٣ أسئلة خيارات (٣ خيارات) مع الجواب الصح والسبب.',
     'إذا الصورة مو واضحة أو ما فيها درس، رجّع "lessons": [] و"note" بجملة بسيطة للطفل.',
+    LESSON_RULES,
     bookTitle ? `هاي الصفحة من كتاب اسمه: "${bookTitle}".` : '',
     'رجّع JSON فقط بهالشكل:',
     '{"bookTitle":"اسم الكتاب إذا ظهر","subject":"المادة","note":"","lessons":[' + DRAFT_SHAPE + ']}',
@@ -379,7 +404,7 @@ export async function learningInsight(input: {
     .map((s) => `${s.subject}: ${s.done} درس، دقة ${s.accuracy}%`)
     .join(' | ')
   const style = learningStyle(memory)
-  const p = personaFor(settings)
+  const p = COMPS[settings.comp] ?? COMPS.buddy
   const fem = p.gender === 'f'
   const prompt = [
     fem
@@ -387,7 +412,7 @@ export async function learningInsight(input: {
       : `أنتَ ${p.name}، رفيق دراسة. بتحكي مع ولي الأمر بلغة شامية محترمة، دافية، وبلا مبالغة.`,
     'اعطي ملاحظة قصيرة (٣ إلى ٤ جمل) عن طريقة تعلّم الطفل ووين بيقوى ووين بيحتاج دعم، مع اقتراح عملي واحد أو تنين.',
     'ما تعطي تشخيص طبي ولا كلام مخيف، وما تطلب معلومات شخصية.',
-    `اسم الطفل(ة): ${settings.childName || 'الطفل'} — ${settings.grade}.`,
+    `اسم الطفل(ة): ${settings.name || 'الطالب'} — ${settings.grade}.`,
     `الدروس: ${subjects || 'ما في دروس لسا'}`,
     `الأسلوب: ${style.label} — ${style.line}`,
     `الاهتمامات: ${memory.interests.join('، ') || 'ما انكتبت لسا'}`,
@@ -399,5 +424,50 @@ export async function learningInsight(input: {
   if (!res.ok) return res
   const text = str(res.data.insight)
   if (text === '') return { ok: false, error: 'ما طلع في ملاحظة. جرّب مرة تانية.' }
+  return { ok: true, data: text }
+}
+
+/** "ما فهمت": نفس الخطوة بطريقة تانية ومثال من حياة الطفل. */
+export async function reexplain(input: {
+  apiKey: string
+  settings: Settings
+  memory: Memory
+  lessonTitle: string
+  step: string
+}): Promise<Result<string>> {
+  const { apiKey, settings, memory, lessonTitle, step } = input
+  const prompt = [
+    persona(settings, memory),
+    `الطفل عم يدرس درس "${lessonTitle}" وما فهم هالخطوة: "${step}"`,
+    'اشرحها بطريقة تانية تماماً بمثال من حياة الطفل اليومية، بجملتين أو تلاتة قصار، وبلا ما تعطي جواب أي سؤال.',
+    'رجّع JSON فقط: {"text":"الشرح هنا"}',
+  ].join('\n')
+  const res = await callJson(apiKey, [{ text: prompt }], 0.7)
+  if (!res.ok) return res
+  const text = str(res.data.text)
+  if (text === '') return { ok: false, error: 'ما قدرنا نشرحها بطريقة تانية. جرّب مرة تانية.' }
+  return { ok: true, data: text }
+}
+
+/** تقرير الأسبوع لولي الأمر بصوت الرفيق، من أرقام جاهزة (بلا اختراع معلومات). */
+export async function weeklyNarrative(input: {
+  apiKey: string
+  settings: Settings
+  memory: Memory
+  facts: string
+}): Promise<Result<string>> {
+  const { apiKey, settings, memory, facts } = input
+  const prompt = [
+    persona(settings, memory),
+    'هلق بتحكي مع ولي الأمر (مو مع الطفل) بلغة شامية محترمة ودافية، وبتحكي عن الطفل بصيغة الغائب.',
+    'اكتب تقرير أسبوعي قصير (٤ إلى ٥ جمل) من هالمعلومات بس، وما تخترع أرقام أو معلومات مو موجودة:',
+    facts,
+    'اختم باقتراح عملي واحد بسيط للأهل. بلا ماركداون.',
+    'رجّع JSON فقط: {"report":"التقرير هنا"}',
+  ].join('\n')
+  const res = await callJson(apiKey, [{ text: prompt }], 0.5)
+  if (!res.ok) return res
+  const text = str(res.data.report)
+  if (text === '') return { ok: false, error: 'ما طلع تقرير. جرّب مرة تانية.' }
   return { ok: true, data: text }
 }

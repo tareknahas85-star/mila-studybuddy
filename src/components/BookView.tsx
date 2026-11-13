@@ -1,24 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { analyzePage, askMila, type LessonDraft } from '../lib/ai.ts'
-import type { Book, Lesson, Memory, Mood, Settings, SignalKind } from '../lib/store.ts'
-import { uid } from '../lib/store.ts'
-import { prepareImage, prettyDate } from '../lib/img.ts'
+import { analyzePage, askMila } from '../lib/ai.ts'
+import type { LessonDraft } from '../lib/ai.ts'
 import { saveImage } from '../lib/archive.ts'
-import { iconFor } from '../lib/subjects.ts'
-import Shot from './Shot.tsx'
-
-interface Props {
-  settings: Settings
-  memory: Memory
-  book: Book
-  lessons: Lesson[]
-  onBack: () => void
-  onSavePages: (drafts: LessonDraft[], imageId: string) => void
-  onAskSave: (draft: LessonDraft) => void
-  onOpenLesson: (id: string) => void
-  onMood: (m: Mood) => void
-  onSignal: (kind: SignalKind) => void
-}
+import { COMPS } from '../lib/companions.ts'
+import { prepareImage } from '../lib/img.ts'
+import { stickerSvg } from '../lib/rewards.ts'
+import type { Lesson, Memory, SignalKind, Student } from '../lib/store.ts'
+import { uid } from '../lib/store.ts'
+import { AR, Companion, Icon, Sheet, Sticker } from './ui.tsx'
 
 interface ShotState {
   id: string
@@ -27,38 +16,58 @@ interface ShotState {
   url: string
 }
 
-/** جوّا الكتاب: بحث مربوط بجيميني + تصوير صفحة من الكاميرا أو المعرض وترتيب دروسها. */
-export default function BookView({
-  settings,
-  memory,
-  book,
-  lessons,
-  onBack,
-  onSavePages,
-  onAskSave,
-  onOpenLesson,
-  onMood,
-  onSignal,
-}: Props) {
+interface Props {
+  student: Student
+  memory: Memory
+  apiKey: string
+  book: { id: string; title: string; subject: string; color: string }
+  cover: { color?: string; sticker?: string }
+  lessons: Lesson[]
+  onBack: () => void
+  onSavePages: (drafts: LessonDraft[], imageId: string) => void
+  onAskSave: (draft: LessonDraft) => void
+  onOpenLesson: (id: string) => void
+  onSignal: (kind: SignalKind) => void
+  onDelete: (id: string) => void
+  onDecorate: () => void
+}
+
+/** جوّا الكتاب: غلاف بينفتح، فهرس بالدروس، تصوير صفحة، وسؤال عن الكتاب. */
+export default function BookView(p: Props) {
+  const { student, memory, apiKey, book, lessons } = p
+  const comp = COMPS[student.comp]
+  const [phase, setPhase] = useState<'closed' | 'opening' | 'open'>('closed')
   const [question, setQuestion] = useState('')
   const [asking, setAsking] = useState(false)
   const [shot, setShot] = useState<ShotState | null>(null)
   const [reading, setReading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [confirm, setConfirm] = useState<string | null>(null)
   const shotRef = useRef<ShotState | null>(null)
 
   useEffect(() => {
     shotRef.current = shot
   }, [shot])
 
-  // تنظيف روابط المعاينة لما نطلع من الشاشة.
+  useEffect(() => {
+    const a = window.setTimeout(() => setPhase('opening'), 250)
+    const b = window.setTimeout(() => setPhase('open'), 1200)
+    return () => {
+      window.clearTimeout(a)
+      window.clearTimeout(b)
+    }
+  }, [])
+
   useEffect(
     () => () => {
       if (shotRef.current) URL.revokeObjectURL(shotRef.current.url)
     },
     [],
   )
+
+  const coverColor = p.cover.color ?? book.color
+  const settings = { grade: student.grade, comp: student.comp, name: student.name }
 
   const ask = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,18 +76,15 @@ export default function BookView({
     setAsking(true)
     setError('')
     setNotice('')
-    onMood('think')
-    const res = await askMila({ apiKey: settings.geminiKey, settings, memory, question: q, bookTitle: book.title })
+    const res = await askMila({ apiKey, settings, memory, question: q, bookTitle: book.title })
     setAsking(false)
     if (!res.ok) {
       setError(res.error)
-      onMood('tired')
       return
     }
-    onSignal('asked')
-    onMood('laugh')
+    p.onSignal('asked')
     setQuestion('')
-    onAskSave(res.data)
+    p.onAskSave(res.data)
   }
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,134 +112,177 @@ export default function BookView({
     setReading(true)
     setError('')
     setNotice('')
-    onMood('think')
-    const res = await analyzePage({
-      apiKey: settings.geminiKey,
-      settings,
-      memory,
-      imageDataUrl: shot.dataUrl,
-      bookTitle: book.title,
-    })
+    const res = await analyzePage({ apiKey, settings, memory, imageDataUrl: shot.dataUrl, bookTitle: book.id === '' ? undefined : book.title })
     if (!res.ok) {
       setReading(false)
       setError(res.error)
-      onMood('tired')
       return
     }
     const stored = await saveImage(shot.id, shot.blob)
-    const imageId = stored ? shot.id : ''
-    onSavePages(res.data.lessons, imageId)
-    onSignal('photos')
+    p.onSavePages(res.data.lessons, stored ? shot.id : '')
+    p.onSignal('photos')
     setReading(false)
-    onMood('laugh')
     URL.revokeObjectURL(shot.url)
     setShot(null)
     const n = res.data.lessons.length
-    setNotice(
-      n === 1
-        ? 'حفظنا درس واحد بالأرشيف، والصورة محفوظة معه 🗂️'
-        : `لقينا ${n} دروس بالصفحة وحفظناهم كلهم مع الصورة 🗂️`,
-    )
+    setNotice(n === 1 ? 'لزقنا الدرس بالفهرس، والصفحة محفوظة معو.' : `لقينا ${AR(n)} دروس بالصفحة ولزقناهم كلهم بالفهرس.`)
   }
 
+  const target = lessons.find((l) => l.id === confirm)
+
   return (
-    <>
-      <div className="lesson-head">
-        <button className="back" type="button" onClick={onBack} aria-label="رجوع">
-          ‹
-        </button>
-        <div className="lesson-title">
-          <h2 className="title">{book.title}</h2>
-          <span className="row-sub">
-            {iconFor(book.subject)} {book.subject} · {lessons.length === 0 ? 'ما في دروس' : `${lessons.length} درس`}
-          </span>
+    <main className="screen">
+      <div className="book-stage">
+        <div className="book-head">
+          <button type="button" className="icon-btn" onClick={p.onBack} aria-label="رجوع للمكتب">
+            <Icon name="back" size={22} sw={2.6} />
+          </button>
+          <div className="display" style={{ fontSize: 24, flex: 1 }}>
+            {book.title}
+          </div>
+          {book.id !== '' && (
+            <button type="button" className="btn small" onClick={p.onDecorate}>
+              <Icon name="brush" size={20} /> زيّن الغلاف
+            </button>
+          )}
+        </div>
+
+        <div className="book">
+          {phase !== 'open' && (
+            <div className={`cover ${phase === 'opening' ? 'open' : ''}`} style={{ background: coverColor }}>
+              <div className="tape" style={{ top: 20, left: 26, transform: 'rotate(-12deg)' }} />
+              <div className="cover-title">
+                <div className="ct display">{book.title}</div>
+                <div className="bold" style={{ fontSize: 16, textAlign: 'center' }}>
+                  كتاب {student.name}
+                </div>
+              </div>
+              <span className="svgwrap" dangerouslySetInnerHTML={{ __html: stickerSvg(p.cover.sticker ?? 'star', 90, 10) }} />
+            </div>
+          )}
+
+          <div className="pages paper">
+            <h2 className="display" style={{ margin: 0, fontSize: 28 }}>
+              الفهرس
+            </h2>
+            {lessons.length === 0 ? (
+              <p className="muted bold" style={{ margin: 0, lineHeight: 1.7 }}>
+                لسا ما في دروس. صوّر أول صفحة أو اسأل {comp.name} عن شي بالكتاب.
+              </p>
+            ) : (
+              <ol className="toc-list">
+                {lessons.map((l, i) => (
+                  <li key={l.id} className="toc-item">
+                    <button type="button" className="toc-row" onClick={() => p.onOpenLesson(l.id)}>
+                      <span className="slot">
+                        {l.done ? <Sticker id="star" size={44} rot={-8} /> : <span className="slot-dash" aria-label="لسا ما انحل" />}
+                      </span>
+                      <span className="toc-title">{l.title}</span>
+                      <span className="lead" />
+                      <span className="pg">{AR(lessons.length - i)}</span>
+                    </button>
+                    <button type="button" className="icon-btn tiny" aria-label={`امسح ${l.title}`} onClick={() => setConfirm(l.id)}>
+                      <Icon name="trash" size={18} />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <div className="stack">
+              <h3 className="display" style={{ margin: 0, fontSize: 20 }}>
+                صوّر صفحة
+              </h3>
+              {shot ? (
+                <>
+                  <div className="taped-photo">
+                    <div className="tape" style={{ top: -10, left: '30%', transform: 'rotate(-4deg)' }} />
+                    <img src={shot.url} alt="الصفحة اللي صوّرتها" />
+                  </div>
+                  <div className="row">
+                    <button type="button" className="btn yellow grow" onClick={() => void analyze()} disabled={reading}>
+                      {reading ? 'عم نقرا الصفحة…' : 'حلّل الصفحة'}
+                    </button>
+                    <button type="button" className="btn" onClick={dropShot} disabled={reading}>
+                      غيّر
+                    </button>
+                  </div>
+                  {reading && (
+                    <div className="say-row">
+                      <Companion id={student.comp} acc={student.acc} size={56} mood="think" />
+                      <div className="bubble grow">عم بقرا الصفحة وبرتّب الدروس… لحظة.</div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="row">
+                  <label className="photo-card grow">
+                    <Icon name="cam" size={28} sw={2} />
+                    <span>كاميرا</span>
+                    <input type="file" accept="image/*" capture="environment" onChange={(e) => void pick(e)} hidden />
+                  </label>
+                  <label className="photo-card grow">
+                    <Icon name="img" size={28} sw={2} />
+                    <span>من المعرض</span>
+                    <input type="file" accept="image/*" onChange={(e) => void pick(e)} hidden />
+                  </label>
+                </div>
+              )}
+              <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+                من الكتاب أو الدفتر أو السبورة. بتصير دروس هون.
+              </p>
+            </div>
+
+            <form className="stack" onSubmit={(e) => void ask(e)}>
+              <h3 className="display" style={{ margin: 0, fontSize: 20 }}>
+                اسأل عن شي بالكتاب
+              </h3>
+              <div className="row">
+                <input
+                  className="input grow"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="مثلاً: شو المطلوب بالتمرين ٣؟"
+                  maxLength={220}
+                  aria-label="سؤال عن الكتاب"
+                />
+                <button className="btn yellow" type="submit" disabled={asking || question.trim().length < 3}>
+                  {asking ? '…' : 'اشرح'}
+                </button>
+              </div>
+            </form>
+
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
+            {notice && <p className="ok">{notice}</p>}
+          </div>
         </div>
       </div>
 
-      <section className="card">
-        <h3 className="small-title">اسأل عن شي بهالكتاب 🔎</h3>
-        <form className="search" onSubmit={ask}>
-          <input
-            className="input"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="مثلاً: شو المطلوب بالتمرين ٣؟"
-            maxLength={220}
-            aria-label="سؤال عن الكتاب"
-          />
-          <button className="primary search-btn" type="submit" disabled={asking || question.trim().length < 3}>
-            {asking ? '⏳' : 'اشرح'}
-          </button>
-        </form>
-        {asking && <p className="note small">عم ندوّر بالكتاب ونجهّز الشرح… 💭</p>}
-      </section>
-
-      <section className="card">
-        <h3 className="small-title">صوّر صفحة 📸</h3>
-        <p className="note small">من الكتاب، أو دفترك، أو السبورة — منقرا كل شي ومنرتّب الدروس.</p>
-
-        {shot ? (
-          <>
-            <img className="preview" src={shot.url} alt="الصفحة اللي صوّرتها" />
-            <div className="shot-actions">
-              <button className="primary" type="button" onClick={analyze} disabled={reading}>
-                {reading ? 'عم نقرا الصفحة… ⏳' : 'حلّل الصفحة ✨'}
-              </button>
-              <button className="ghost" type="button" onClick={dropShot} disabled={reading}>
-                غيّر الصورة
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="shot-zone">
-            <label className="shot-btn">
-              <input type="file" accept="image/*" capture="environment" onChange={pick} hidden />
-              <span aria-hidden="true">📷</span> صوّر بالكاميرا
-            </label>
-            <label className="shot-btn">
-              <input type="file" accept="image/*" onChange={pick} hidden />
-              <span aria-hidden="true">🖼️</span> من المعرض
-            </label>
-          </div>
-        )}
-
-        {error && (
-          <p className="error" role="alert">
-            {error}
+      {target && (
+        <Sheet onClose={() => setConfirm(null)} label="مسح الدرس">
+          <h2 className="display">نمسح «{target.title}»؟</h2>
+          <p className="muted bold" style={{ margin: 0 }}>
+            بيروح الدرس والصفحة المحفوظة معو.
           </p>
-        )}
-        {notice && <p className="ok">{notice}</p>}
-      </section>
-
-      <section className="card">
-        <div className="row-head">
-          <h3 className="small-title">دروس الكتاب</h3>
-          {lessons.length > 0 && <span className="pill">🗂️ {lessons.length}</span>}
-        </div>
-        {lessons.length === 0 ? (
-          <p className="note">بعد ما تحلّل أول صفحة، دروسها بتنزل هون وبتضل محفوظة على الجهاز.</p>
-        ) : (
-          <div className="list">
-            {lessons.map((l) => (
-              <button key={l.id} className="row" type="button" onClick={() => onOpenLesson(l.id)}>
-                {l.imageId ? (
-                  <Shot id={l.imageId} className="row-thumb" />
-                ) : (
-                  <span className="row-icon" aria-hidden="true">
-                    {iconFor(l.subject)}
-                  </span>
-                )}
-                <span className="row-main">
-                  <span className="row-title">{l.title}</span>
-                  <span className="row-sub">
-                    {prettyDate(l.createdAt)} · {l.done ? `محلول ${l.right}/${l.total} ✓` : 'بدك تحلّه'}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-    </>
+          <button
+            type="button"
+            className="btn accent"
+            onClick={() => {
+              p.onDelete(target.id)
+              setConfirm(null)
+            }}
+          >
+            امسح
+          </button>
+          <button type="button" className="btn ghost" onClick={() => setConfirm(null)}>
+            لا، خلّيه
+          </button>
+        </Sheet>
+      )}
+    </main>
   )
 }
