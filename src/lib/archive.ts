@@ -1,5 +1,5 @@
 // صور الدروس بتنحفظ بـIndexedDB على الجهاز (مساحة أكبر بكثير من localStorage)،
-// ما بتنرفع لأي سيرفر: بتنصدّر بس داخل ملف النسخة الاحتياطية اللي ولي الأمر بيحفظه بإيده.
+// وما بتنطلع من التطبيق: لا رفع، لا سيرفر، لا نسخ احتياطي سحابي.
 const DB_NAME = 'mila-archive'
 const STORE = 'images'
 const VERSION = 1
@@ -81,50 +81,18 @@ export async function removeImage(id: string): Promise<void> {
   }
 }
 
-async function readBlob(id: string): Promise<Blob | null> {
-  const db = await openDb()
-  return new Promise<Blob | null>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly')
-    const req = tx.objectStore(STORE).get(id)
-    req.onsuccess = () => resolve(req.result instanceof Blob ? req.result : null)
-    req.onerror = () => reject(req.error ?? new Error('idb-get-failed'))
-  })
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error ?? new Error('read-failed'))
-    reader.readAsDataURL(blob)
-  })
-}
-
-/** بيجمّع صور الدروس كـdata URLs للنسخة الاحتياطية. الصور اللي ما انلقت بتنتجاهل. */
-export async function exportImages(ids: string[]): Promise<Record<string, string>> {
-  const out: Record<string, string> = {}
-  for (const id of new Set(ids.filter((x) => x !== ''))) {
-    try {
-      const blob = await readBlob(id)
-      if (blob) out[id] = await blobToDataUrl(blob)
-    } catch {
-      // صورة وحدة تالفة ما بتوقف النسخة كلها.
-    }
+/** الصورة الخام (للتصدير بملف ZIP). */
+export async function loadImageBlob(id: string): Promise<Blob | null> {
+  if (id === '') return null
+  try {
+    const db = await openDb()
+    return await new Promise<Blob | null>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly')
+      const req = tx.objectStore(STORE).get(id)
+      req.onsuccess = () => resolve(req.result instanceof Blob ? req.result : null)
+      req.onerror = () => reject(req.error ?? new Error('idb-get-failed'))
+    })
+  } catch {
+    return null
   }
-  return out
-}
-
-/** بيرجّع الصور من النسخة الاحتياطية للـIndexedDB. بيرجّع عدد الصور اللي انحفظت. */
-export async function importImages(map: Record<string, unknown>): Promise<number> {
-  let saved = 0
-  for (const [id, value] of Object.entries(map)) {
-    if (id === '' || typeof value !== 'string' || !value.startsWith('data:image/')) continue
-    try {
-      const blob = await (await fetch(value)).blob()
-      if (await saveImage(id, blob)) saved++
-    } catch {
-      // ما في داعي نفشل الاستعادة كلها بسبب صورة.
-    }
-  }
-  return saved
 }

@@ -1,9 +1,5 @@
 // تصغير الصورة على الجهاز قبل الإرسال: أسرع، أرحم لباقة الإنترنت، وأوضح لجيميني
 // (صور الموبايل ٤٠٠٠ بكسل ما إلها داعي للشرح).
-//
-// خصوصية: الصورة بتنرسم على canvas وبتنعاد تشفيرها، فكل البيانات المدموجة بالملف الأصلي
-// (EXIF، GPS، وقت وموديل الكاميرا، XMP) ما بتنتقل للصورة اللي بتنبعت لجيميني.
-// لا تغيّر هالخطوة بدون ما تتأكد إن الـmetadata لسا بتنحذف.
 export interface Prepared {
   dataUrl: string
   blob: Blob
@@ -51,5 +47,24 @@ export function prettyDate(ts: number): string {
     return new Intl.DateTimeFormat('ar', { day: 'numeric', month: 'long' }).format(new Date(ts))
   } catch {
     return ''
+  }
+}
+
+/** صورة الطالب: مربّعة من وسط الصورة، مصغّرة ومضغوطة (بتنحفظ جوّا بيانات الطالب). */
+export async function squareAvatar(file: File, size = 256, quality = 0.8): Promise<string | null> {
+  if (!file.type.startsWith('image/')) return null
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    const side = Math.min(bitmap.width, bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size)
+    bitmap.close?.()
+    return canvas.toDataURL('image/jpeg', quality)
+  } catch {
+    return null
   }
 }

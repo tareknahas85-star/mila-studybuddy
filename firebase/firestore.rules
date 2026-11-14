@@ -1,0 +1,56 @@
+rules_version = '2';
+// StudyBuddy: قواعد Firestore (بتطابق src/lib/sync.ts).
+// معرّف العيلة = uid ولي الأمر الأول. جهاز الطالب بينضاف بكود ربط صالح ١٠ دقايق.
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function fam(fid) { return get(/databases/$(db)/documents/families/$(fid)).data; }
+    function isParent(fid) { return signedIn() && request.auth.uid in fam(fid).parents; }
+    function isDevice(fid) {
+      return signedIn() && exists(/databases/$(db)/documents/families/$(fid)/devices/$(request.auth.uid));
+    }
+    function isMember(fid) { return isParent(fid) || isDevice(fid); }
+
+    match /families/{fid} {
+      allow create: if signedIn() && request.auth.uid == fid && request.resource.data.parents == [request.auth.uid];
+      allow read: if signedIn() && (request.auth.uid == fid || isMember(fid));
+      allow update, delete: if isParent(fid);
+
+      match /devices/{uid} {
+        allow create: if signedIn() && request.auth.uid == uid
+          && exists(/databases/$(db)/documents/pairings/$(request.resource.data.code))
+          && get(/databases/$(db)/documents/pairings/$(request.resource.data.code)).data.fid == fid
+          && get(/databases/$(db)/documents/pairings/$(request.resource.data.code)).data.exp > request.time;
+        allow read, delete: if signedIn() && (request.auth.uid == uid || isParent(fid));
+      }
+
+      match /kids/{kid} {
+        allow read, write: if isMember(fid);
+
+        match /settings/{doc} {
+          allow read, write: if isMember(fid);
+        }
+
+        match /homework/{doc} {
+          allow read: if isMember(fid);
+          allow create, delete: if isParent(fid);
+          allow update: if isParent(fid)
+            || (isDevice(fid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done']));
+        }
+
+        match /ops/{doc} {
+          allow read, delete: if isMember(fid);
+          allow create: if isParent(fid);
+        }
+      }
+    }
+
+    match /pairings/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.fid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.fid == request.auth.uid;
+    }
+  }
+}

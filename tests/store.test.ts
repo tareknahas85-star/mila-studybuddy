@@ -1,221 +1,118 @@
-// اختبارات منطق التخزين والذاكرة. تشغيل: npm test
-// بتستعمل node:test المدمج، وبدون أي مكتبة خارجية.
-import { test, beforeEach } from 'node:test'
+// اختبارات منطق StudyBuddy: المراجعة المتباعدة، الأسبوع، المهمّات، النجوم، والتحديثات.
+// بتشتغل بـNode بدون متصفح: node --experimental-strip-types --test tests/store.test.ts
 import assert from 'node:assert/strict'
-import {
-  completeLesson,
-  currentStreak,
-  exportData,
-  importData,
-  learningStyle,
-  loadLessons,
-  loadSettings,
-  recordResult,
-  saveSettings,
-  subjectReads,
-  todayKey,
-  DEFAULT_MEMORY,
-  type Lesson,
-  type Memory,
-  type Progress,
-} from '../src/lib/store.ts'
+import { test } from 'node:test'
 
-// ذاكرة بسيطة تقلّد localStorage داخل Node.
-class MemoryStorage {
-  #map = new Map<string, string>()
-  getItem(key: string): string | null {
-    return this.#map.has(key) ? (this.#map.get(key) as string) : null
-  }
-  setItem(key: string, value: string): void {
-    this.#map.set(key, String(value))
-  }
-  removeItem(key: string): void {
-    this.#map.delete(key)
-  }
-  clear(): void {
-    this.#map.clear()
-  }
+// localStorage وهمي (store.ts بيستعمل localStorage وقت الحفظ والتحميل).
+const mem = new Map<string, string>()
+const fake = {
+  getItem: (k: string) => mem.get(k) ?? null,
+  setItem: (k: string, v: string) => void mem.set(k, String(v)),
+  removeItem: (k: string) => void mem.delete(k),
+  clear: () => mem.clear(),
 }
+Object.defineProperty(globalThis, 'localStorage', { value: fake, configurable: true })
 
-;(globalThis as { localStorage?: unknown }).localStorage = new MemoryStorage()
+const store = await import('../src/lib/store.ts')
+const rewards = await import('../src/lib/rewards.ts')
+const update = await import('../src/lib/update.ts')
 
-beforeEach(() => {
-  localStorage.clear()
+const DAY = 86400000
+
+test('المراجعة المتباعدة: بعد يوم، تلاتة، سبعة، أربعتعش، وبعدها بتختفي', () => {
+  const seed = { lessonId: 'L1', q: 'شو المقام؟', options: ['أ', 'ب'], answer: 1, why: 'لأن' }
+  let m = store.addReview(store.DEFAULT_MEMORY, seed)
+  assert.equal(m.review.length, 1)
+  assert.equal(store.dueItems(m).length, 0, 'مو مستحق قبل يوم')
+  assert.equal(store.dueItems(m, Date.now() + 2 * DAY).length, 1, 'مستحق بعد يوم')
+  const id = m.review[0].id
+  m = store.gradeReview(m, id, true)
+  assert.equal(m.review[0].box, 1)
+  assert.ok(m.review[0].due > Date.now() + 2 * DAY, 'الموعد الجاي بعد ٣ أيام تقريباً')
+  m = store.gradeReview(m, id, true)
+  m = store.gradeReview(m, id, true)
+  assert.equal(m.review[0].box, 3)
+  m = store.gradeReview(m, id, true)
+  assert.equal(m.review.length, 0, 'انحفظ: بيختفي من المراجعة')
 })
 
-const mem = (over: Partial<Memory> = {}): Memory => ({ ...DEFAULT_MEMORY, ...over })
-
-const daysAgo = (n: number): string => {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return todayKey(d)
-}
-
-const lesson = (over: Partial<Lesson> = {}): Lesson => ({
-  id: 'l1',
-  bookId: '',
-  title: 'الكسور',
-  subject: 'رياضيات',
-  summary: '',
-  steps: [],
-  hints: [],
-  quiz: [],
-  videoQuery: '',
-  imageId: '',
-  createdAt: 0,
-  done: false,
-  right: 0,
-  total: 0,
-  ...over,
+test('الجواب الغلط بالمراجعة بيرجّع السؤال لأول مرحلة', () => {
+  const seed = { lessonId: 'L1', q: 'سؤال؟', options: ['أ', 'ب'], answer: 0, why: 'ج' }
+  let m = store.addReview(store.DEFAULT_MEMORY, seed)
+  const id = m.review[0].id
+  m = store.gradeReview(m, id, true)
+  assert.equal(m.review[0].box, 1)
+  m = store.gradeReview(m, id, false)
+  assert.equal(m.review[0].box, 0)
 })
 
-test('learningStyle: لا إشارات يعني غير معروف', () => {
-  assert.equal(learningStyle(mem()).key, 'none')
+test('بداية الأسبوع السبت', () => {
+  assert.equal(store.weekStartKey(new Date(2026, 10, 14, 12)), '2026-11-14') // السبت
+  assert.equal(store.weekStartKey(new Date(2026, 10, 15, 12)), '2026-11-14') // الأحد
+  assert.equal(store.weekStartKey(new Date(2026, 10, 20, 12)), '2026-11-14') // الجمعة
+  assert.equal(store.weekStartKey(new Date(2026, 10, 21, 12)), '2026-11-21') // السبت الجاي
 })
 
-test('learningStyle: الصوت يفوز لما يكون الأعلى', () => {
-  const m = mem({ signals: { ...DEFAULT_MEMORY.signals, voice: 5, text: 2 } })
-  assert.equal(learningStyle(m).key, 'voice')
+test('النجوم: صفحة وحدة مرة وحدة، وعدّاد يومي للسقف', () => {
+  let p = { ...store.DEFAULT_PROGRESS }
+  assert.equal(store.starLessonsToday(p), 0)
+  const withImage = { imageId: 'img9', id: 'x' } as Parameters<typeof store.lessonStarKey>[0]
+  const noImage = { imageId: '', id: 'x' } as Parameters<typeof store.lessonStarKey>[0]
+  assert.equal(store.lessonStarKey(withImage), 'img:img9')
+  assert.equal(store.lessonStarKey(noImage), 'lesson:x')
+  p = store.markStarLesson(p, 'img:img9')
+  p = store.markStarLesson(p, 'lesson:y')
+  assert.equal(store.starLessonsToday(p), 2)
+  assert.deepEqual(p.starKeys, ['img:img9', 'lesson:y'])
 })
 
-test('learningStyle: التعادل بين الصوت والقراءة يرجع للقراءة', () => {
-  const m = mem({ signals: { ...DEFAULT_MEMORY.signals, voice: 3, text: 3 } })
-  assert.equal(learningStyle(m).key, 'text')
+test('فتح الأغراض: بالنجوم أو بالمهمّات', () => {
+  const p = { ...store.DEFAULT_PROGRESS, stars: 30 }
+  assert.ok(rewards.isUnlocked(p, 'comp', 'buddy', rewards.COMP_COST.buddy), 'الأولى مجانية')
+  assert.ok(rewards.isUnlocked(p, 'comp', 'robo', rewards.COMP_COST.robo), '٣٠ نجمة بتفتح روبو (٢٥)')
+  assert.ok(!rewards.isUnlocked(p, 'comp', 'cat', rewards.COMP_COST.cat), 'القطة بدها ٧٠')
+  assert.ok(rewards.isUnlocked({ ...p, unlocked: ['comp:cat'] }, 'comp', 'cat', rewards.COMP_COST.cat), 'أو مهمّة بتفتحها')
+  const next = rewards.nextUnlock(p)
+  assert.ok(next && next.left > 0)
 })
 
-test('currentStreak: أيام متتالية حتى اليوم', () => {
-  const p: Progress = { stars: 0, lessonsDone: 0, days: [daysAgo(0), daysAgo(1), daysAgo(2)] }
-  assert.equal(currentStreak(p), 3)
+test('المهمّات: بتنفتح المراحل مرة وحدة ومع جايزة', () => {
+  const base = { ...store.DEFAULT_PROGRESS, lessonsDone: 5, counts: { perfect: 1 } }
+  const r = rewards.claimMissions(base)
+  const got = r.fresh.map((f) => f.reward)
+  assert.ok(got.includes('skin:forest'), 'ماراثون ٥ دروس ← ثيم الغابة')
+  assert.ok(got.includes('acc:glasses'), 'بلا غلط ← نضارة')
+  assert.ok(r.progress.unlocked.includes('skin:forest'))
+  const again = rewards.claimMissions(r.progress)
+  assert.equal(again.fresh.length, 0, 'ما بتنحسب مرتين')
 })
 
-test('currentStreak: إذا اليوم فاضي بس أمس فيه، السلسلة لسا شغّالة', () => {
-  const p: Progress = { stars: 0, lessonsDone: 0, days: [daysAgo(1), daysAgo(2)] }
-  assert.equal(currentStreak(p), 2)
+test('المستويات', () => {
+  assert.equal(rewards.levelOf(0).level, 1)
+  assert.equal(rewards.levelOf(8).level, 2)
+  assert.equal(rewards.levelOf(10000).next, null)
 })
 
-test('currentStreak: فجوة بتكسر السلسلة', () => {
-  const p: Progress = { stars: 0, lessonsDone: 0, days: [daysAgo(0), daysAgo(3)] }
-  assert.equal(currentStreak(p), 1)
+test('مقارنة النسخ للتحديث', () => {
+  assert.ok(update.isNewer('54.0.1', '54.0.0'))
+  assert.ok(update.isNewer('v55.0.0', '54.9.9'))
+  assert.ok(update.isNewer('54.10.0', '54.9.0'))
+  assert.ok(!update.isNewer('54.0.0', '54.0.0'))
+  assert.ok(!update.isNewer('v54.0.0', '54.0.0'))
+  assert.ok(!update.isNewer('53.9.9', '54.0.0'))
 })
 
-test('completeLesson: بيحسب النجوم والدروس واليوم مرة وحدة', () => {
-  const once = completeLesson({ stars: 0, lessonsDone: 0, days: [] }, 2)
-  const twice = completeLesson(once, 1)
-  assert.equal(twice.stars, 3)
-  assert.equal(twice.lessonsDone, 2)
-  assert.equal(twice.days.length, 1)
-})
-
-test('subjectReads: العتبات 80 و50، والترتيب حسب عدد الدروس', () => {
-  const reads = subjectReads(
-    mem({
-      subjects: {
-        رياضيات: { done: 2, right: 9, total: 10 },
-        علوم: { done: 5, right: 2, total: 10 },
-        عربي: { done: 1, right: 6, total: 10 },
-      },
-    }),
-  )
-  assert.deepEqual(
-    reads.map((r) => [r.subject, r.tone]),
-    [
-      ['علوم', 'low'],
-      ['رياضيات', 'good'],
-      ['عربي', 'mid'],
-    ],
-  )
-})
-
-test('recordResult: يحدّث المادة ويرفع الموضوع لفوق بدون تكرار', () => {
-  let m = recordResult(mem(), lesson({ title: 'الكسور' }), 1, 2)
-  m = recordResult(m, lesson({ title: 'الضرب' }), 2, 2)
-  m = recordResult(m, lesson({ title: 'الكسور' }), 2, 2)
-  assert.deepEqual(m.topics, ['الكسور', 'الضرب'])
-  assert.deepEqual(m.subjects['رياضيات'], { done: 3, right: 5, total: 6 })
-})
-
-test('exportData: ما بيحتوي رقم الأهل ولا مفتاح جيميني', () => {
-  const SECRET_PIN = '48151623'
-  const SECRET_KEY = 'AIzaSyTESTSECRETKEY123456'
-  saveSettings({
-    childName: 'ليلي',
-    grade: 'الصف الخامس',
-    gender: 'f',
-    parentPin: SECRET_PIN,
-    geminiKey: SECRET_KEY,
-    voice: 'Sulafat',
-    profile: 'lily',
-  })
-  const out = exportData('lily')
-  assert.ok(!out.includes(SECRET_PIN), 'PIN leaked into backup')
-  assert.ok(!out.includes(SECRET_KEY), 'Gemini key leaked into backup')
-})
-
-test('importData: ما بيقدر يغيّر رقم الأهل ولا المفتاح', () => {
-  saveSettings({
-    childName: 'ليلي',
-    grade: 'الصف الخامس',
-    gender: 'f',
-    parentPin: '1111',
-    geminiKey: 'KEY_ORIGINAL',
-    voice: 'Sulafat',
-    profile: 'lily',
-  })
-  const malicious = JSON.stringify({
-    app: 'mila',
-    version: 1,
-    settings: { parentPin: '0000', geminiKey: 'KEY_EVIL', profile: 'lily' },
-    lessons: [],
-  })
-  assert.equal(importData(malicious, 'lily'), true)
-  const after = loadSettings('lily')
-  assert.equal(after.parentPin, '1111')
-  assert.equal(after.geminiKey, 'KEY_ORIGINAL')
-})
-
-test('importData: يرفض الملف غير الصالح', () => {
-  assert.equal(importData('not json', 'lily'), false)
-  assert.equal(importData('[]', 'lily'), false)
-  assert.equal(importData('{"hello":"world"}', 'lily'), false)
-})
-
-test('export ثم import: الدروس بترجع كاملة للطالب', () => {
-  const lessons = [lesson({ id: 'a', title: 'الكسور' }), lesson({ id: 'b', title: 'الضرب' })]
-  localStorage.setItem('mila.lessons.v1.lily', JSON.stringify(lessons))
-  const backup = exportData('lily')
-  localStorage.clear()
-  assert.equal(importData(backup, 'lily'), true)
-  assert.deepEqual(loadLessons('lily'), lessons)
-})
-
-test('importData: بيقبل النسخ القديمة اللي فيها settings وبيتجاهلها', () => {
-  saveSettings({
-    childName: 'ليلي',
-    grade: 'الصف الخامس',
-    gender: 'f',
-    parentPin: '2222',
-    geminiKey: 'KEY_KEEP',
-    voice: 'Sulafat',
-    profile: 'lily',
-  })
-  const legacy = JSON.stringify({
-    progress: { stars: 7, lessonsDone: 3, days: [] },
-    books: [],
-    lessons: [],
-    memory: {},
-    settings: { parentPin: '9999', geminiKey: 'KEY_OLD' },
-  })
-  assert.equal(importData(legacy, 'lily'), true)
-  assert.equal(loadSettings('lily').parentPin, '2222')
-  assert.equal(loadSettings('lily').geminiKey, 'KEY_KEEP')
-})
-
-test('recordResult و completeLesson: ما بيغيّروا الأصل (immutability)', () => {
-  const base = mem()
-  const snapshot = JSON.stringify(base)
-  recordResult(base, lesson(), 1, 1)
-  assert.equal(JSON.stringify(base), snapshot)
-  const p: Progress = { stars: 0, lessonsDone: 0, days: [] }
-  completeLesson(p, 1)
-  assert.deepEqual(p, { stars: 0, lessonsDone: 0, days: [] })
+test('ملخص اليوم: بيعدّ دروس اليوم بس', () => {
+  const now = Date.now()
+  type L = Parameters<typeof store.todaySummary>[0][number]
+  const mk = (id: string, doneAt?: number, done = true) =>
+    ({ id, bookId: 'b', title: `درس ${id}`, subject: 's', summary: '', steps: [], hints: [], quiz: [], videoQuery: '', imageId: '', createdAt: 0, done, right: 0, total: 0, doneAt }) as L
+  const day = store.todayKey()
+  const progress = { ...store.DEFAULT_PROGRESS, secByDay: { [day]: 1200 } }
+  const memory = { ...store.DEFAULT_MEMORY, taught: { a: day, b: '2020-01-01' }, read: { c: day } }
+  const t = store.todaySummary([mk('1', now), mk('2', now - 3 * DAY), mk('3', undefined, false)], memory, progress)
+  assert.deepEqual(t.lessons, ['درس 1'])
+  assert.equal(t.minutes, 20)
+  assert.equal(t.teach, 1)
+  assert.equal(t.read, 1)
 })

@@ -1,14 +1,18 @@
 apply plugin: 'com.android.application'
 
+// رقم النسخة بيجي من package.json (٥٤.٠.٠ ← versionCode 54000) عشان ما يختلف عن الواجهة.
+def pkgVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
+def vp = pkgVersion.tokenize('.').collect { it as int }
+
 android {
     namespace = "com.studybuddy.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.studybuddy.app"
+        applicationId "com.studybuddy.family"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 50500
-        versionName "50.5.0"
+        versionCode vp[0] * 1000 + vp[1] * 100 + vp[2]
+        versionName pkgVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

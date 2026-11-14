@@ -1,17 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import '@fontsource/tajawal/arabic-500.css'
+import '@fontsource/tajawal/arabic-700.css'
+import '@fontsource/tajawal/arabic-800.css'
+import '@fontsource/reem-kufi-fun/arabic-700.css'
 import App from './App.tsx'
-import { initSecrets } from './lib/store.ts'
+import ErrorBoundary from './components/ErrorBoundary.tsx'
 import './styles.css'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('root element missing')
 
-// نفك تشفير مفتاح جيميني قبل الرسم، عشان الشاشات تشوف المفتاح من أول لحظة.
-void initSecrets().finally(() => {
-  createRoot(root).render(
-    <StrictMode>
+createRoot(root).render(
+  <StrictMode>
+    <ErrorBoundary>
       <App />
-    </StrictMode>,
-  )
-})
+    </ErrorBoundary>
+  </StrictMode>,
+)

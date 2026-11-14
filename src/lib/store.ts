@@ -1,47 +1,50 @@
-import { decryptSecret, encryptSecret } from './vault.ts'
+// كل شي بينحفظ على جهاز الطالب — ما في حسابات، والمفتاح ما بيطلع من الجهاز.
+// كل طالب إله حساب مستقل (إعداداته، نجومه، دروسه، كتبه، وذاكرته). ولي الأمر ومفتاح جيميني مشتركين.
+import type { Acc, CompId } from './companions.ts'
+import { COMPS } from './companions.ts'
+import type { SkinId } from './rewards.ts'
 
-// كل شي بينحفظ على جهاز الطفل — ما في سيرفر، ولا حساب، ولا مفتاح بيطلع من الجهاز.
-// كل طالب إله حساب مستقل: إعداداته، نجومه، دروسه، كتبه، وذاكرته.
-// رقم ولي الأمر ومفتاح جيميني مشتركين بين الطلاب (إعداد ولي الأمر).
-export type Mood = 'idle' | 'think' | 'laugh' | 'tired' | 'proud'
 export type Gender = 'f' | 'm'
-/** معرّف الطالب: 'lily' و'roy' للحسابات القديمة، وغيرها رقم عشوائي. */
-export type ProfileId = string
+export type SignalKind = 'voice' | 'video' | 'text' | 'hints' | 'photos' | 'asked'
 
-/** أقصى عدد طلاب على الجهاز. */
-export const MAX_STUDENTS = 6
-
-export interface Settings {
-  childName: string
-  /** اسم الشخصية المساعدة — ولي الأمر بيسمّيها. */
-  assistantName: string
-  grade: string
-  gender: Gender
-  /** رقم ولي الأمر: أول من يفتح التطبيق بيحطه، وبعده ما بيقدر الطفل يفوته. */
-  parentPin: string
-  /** مفتاح جيميني المجاني: ولي الأمر بيحطه مرة واحدة، وبيضل على الجهاز. */
-  geminiKey: string
-  /** صوت الشخصية الطبيعي (Gemini TTS) — اسم الصوت من مكتبة جوجل. */
-  voice: string
-  /** حساب الطالب المفتوح حاليًا. */
-  profile: ProfileId
-}
-
-/** إعدادات الطالب نفسه (بتنحفظ لحسابه لحالو). */
+/** الطالب: الأفاتار (صورتو) مستقل عن الرفيق (الشخصية اللي بتدرّسو). */
 export interface Student {
-  childName: string
-  assistantName: string
+  id: string
+  name: string
   grade: string
   gender: Gender
+  /** مفتاح الأفاتار: صورة مدمجة (lily/roy) أو حرف ملوّن (a/b/c). */
+  av: string
+  comp: CompId
+  skin: SkinId
+  acc: Acc
+  /** صوت الرفيق الطبيعي من مكتبة جوجل. */
   voice: string
+  /** حد الدراسة باليوم بالدقايق (0 = بلا حد). */
+  limitMin: number
+  /** هدف الأسبوع بعدد الدروس (0 = مسكّر). */
+  goal: number
+  /** يسمح لنسخة الطالب بإضافة/حذف الكتب والدروس (الأهل بيفعّلوه). */
+  canEdit: boolean
+  /** أقصى عدد دروس بنجوم باليوم. */
+  starCap: number
 }
 
-/** إعدادات ولي الأمر المشتركة بين الطلاب. */
 export interface ParentData {
-  parentPin: string
-  /** قديم: المفتاح كان نص واضح هون. initSecrets بينقله للتشفير وبيمسحه. */
-  geminiKey?: string
-  profile: ProfileId
+  pinHash: string
+  salt: string
+  /** رقم النسخة القديمة (نص عادي): بيتحوّل لهاش أول ما يفتح التطبيق وبينمسح. */
+  legacyPin: string
+  q: { text: string; h: string } | null
+  geminiKey: string
+  fails: number
+  lockUntil: number
+}
+
+export interface Device {
+  /** '' يعني أول تشغيل لسا ما انحدد. */
+  mode: '' | 'student' | 'parent'
+  active: string
 }
 
 export interface Progress {
@@ -49,6 +52,23 @@ export interface Progress {
   lessonsDone: number
   /** أيام النشاط (YYYY-MM-DD) لحساب السلسلة. */
   days: string[]
+  /** ثواني الدراسة لكل يوم (آخر ٣٠ يوم). */
+  secByDay: Record<string, number>
+  lessonsByDay: Record<string, number>
+  stickers: string[]
+  covers: Record<string, { color?: string; sticker?: string }>
+  /** الأسبوع (بداية السبت) اللي انحسبت فيه جايزة الهدف. */
+  goalWeek: string
+  /** أغراض انفتحت بالمهمّات (comp:cat، acc:bow، skin:space). */
+  unlocked: string[]
+  /** مراحل المهمّات اللي انحسبت (streak:0). */
+  claimed: string[]
+  /** عدّادات المهمّات: perfect، reviewed، review، teach، reader. */
+  counts: Record<string, number>
+  /** دروس نجوم لكل يوم (لسقف النجوم اليومي). */
+  starDays: Record<string, number>
+  /** دروس/صفحات أخدت نجوم قبل: ما بتاخد مرتين. */
+  starKeys: string[]
 }
 
 export interface QuizItem {
@@ -56,17 +76,27 @@ export interface QuizItem {
   options: string[]
   answer: number
   why: string
+  /** نوع الغلط لكل خيار (فاضي للخيار الصح): بيغذّي ذاكرة الأهل. */
+  errs?: string[]
 }
 
-/** كتاب أضافه الطفل/ولي الأمر: بضل بالجهاز، ودروسه بتتخزّن تحته. */
+/** "مين الغلطان؟": الرفيق بيحل بخطوات وفي خطوة غلط، والطالب بيمسكها. */
+export interface Spot {
+  q: string
+  lines: string[]
+  bad: number
+  why: string
+}
+
 export interface Book {
   id: string
   title: string
   subject: string
   createdAt: number
+  /** مؤرشف: مخبّى عن الطالب ومحفوظ عند الأهل، بيرجع بضغطة. */
+  archived?: boolean
 }
 
-/** درس محفوظ بالأرشيف: شرح + تلميحات + أسئلة خيارات + صورة الصفحة. */
 export interface Lesson {
   id: string
   /** '' يعني سؤال حر من البحث، مش من كتاب. */
@@ -77,6 +107,7 @@ export interface Lesson {
   steps: string[]
   hints: string[]
   quiz: QuizItem[]
+  spot?: Spot
   videoQuery: string
   /** معرّف الصورة بـIndexedDB — فاضي إذا الدرس من سؤال مكتوب. */
   imageId: string
@@ -84,9 +115,9 @@ export interface Lesson {
   done: boolean
   right: number
   total: number
+  /** وقت ما خلّص الدرس (للملخّص اليومي). */
+  doneAt?: number
 }
-
-export type SignalKind = 'voice' | 'video' | 'text' | 'hints' | 'photos' | 'asked'
 
 export interface SubjectStat {
   done: number
@@ -94,52 +125,72 @@ export interface SubjectStat {
   total: number
 }
 
-/** ذاكرة الطفل: كيف بيتعلّم، شو قوي فيه، وشو بيهتم فيه. */
 export interface Memory {
   interests: string[]
   notes: string
   signals: Record<SignalKind, number>
   subjects: Record<string, SubjectStat>
   topics: string[]
-  /** ملاحظة الشخصية لولي الأمر (بتتولّد من جيميني لما يطلبها). */
+  /** مهارة (عنوان الدرس) ← جواب صح من أول مرة / غلط. */
+  skills: Record<string, { ok: number; bad: number }>
+  /** نوع الغلط ← كم مرة تكرر. */
+  tags: Record<string, number>
+  /** أسئلة غلط فيها الطالب: بترجع بالمراجعة بعد يوم وتلاتة وسبعة وأربعتعش يوم. */
+  review: ReviewItem[]
+  /** درس ← يوم آخر مرة علّم فيه رفيقو (نجمة مرة باليوم). */
+  taught: Record<string, string>
+  /** نص ← يوم آخر قراءة ناجحة بصوت عالي (نجمة مرة باليوم). */
+  read: Record<string, string>
   insight: string
   insightAt: number
 }
 
-const SETTINGS_KEY = 'mila.settings.v1'
+/** واجب من الأهل: صفحة مصوّرة + رسالة. */
+export interface Homework {
+  id: string
+  msg: string
+  /** صورة مضغوطة (data URL) أو فاضي. */
+  photo: string
+  ts: number
+  done: boolean
+}
+
+const OLD_SETTINGS = 'mila.settings.v1'
 const PROGRESS_KEY = 'mila.progress.v1'
 const BOOKS_KEY = 'mila.books.v1'
 const LESSONS_KEY = 'mila.lessons.v1'
 const MEMORY_KEY = 'mila.memory.v1'
-const MIGRATED_KEY = 'mila.profiles.v1'
-const STUDENTS_KEY = 'mila.students.v1'
+const STUDENTS_KEY = 'sb.students.v1'
+const PARENT_KEY = 'sb.parent.v1'
+const DEVICE_KEY = 'sb.device.v1'
+const HW_KEY = 'sb.hw.v1'
 
-const STUDENT_KEY = (profile: ProfileId): string => `mila.student.v1.${profile}`
-const dataKey = (base: string, profile: ProfileId): string => `${base}.${profile}`
+const dataKey = (base: string, id: string): string => `${base}.${id}`
 
-/** الحسابات القديمة (ليلي/روي) بقيمها الأصلية. */
-const LEGACY_STUDENT: Record<'lily' | 'roy', Student> = {
-  lily: { childName: 'ليلي', assistantName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' },
-  roy: { childName: 'روي', assistantName: 'روي', grade: 'الصف الخامس', gender: 'm', voice: 'Puck' },
-}
-
-function fallbackStudent(profile: ProfileId): Student {
-  if (profile === 'lily' || profile === 'roy') return LEGACY_STUDENT[profile]
-  return { childName: '', assistantName: 'ليلي', grade: 'الصف الخامس', gender: 'f', voice: 'Sulafat' }
-}
-
-/** نسخة ملف الاحتياطي. */
-export const BACKUP_VERSION = 1
-
-export const DEFAULT_SETTINGS: Settings = {
-  childName: '',
-  assistantName: 'ليلي',
-  grade: 'الصف الخامس',
-  gender: 'f',
-  parentPin: '',
+export const DEFAULT_PARENT: ParentData = {
+  pinHash: '',
+  salt: '',
+  legacyPin: '',
+  q: null,
   geminiKey: '',
-  voice: 'Sulafat',
-  profile: 'lily',
+  fails: 0,
+  lockUntil: 0,
+}
+
+export const DEFAULT_PROGRESS: Progress = {
+  stars: 0,
+  lessonsDone: 0,
+  days: [],
+  secByDay: {},
+  lessonsByDay: {},
+  stickers: ['star'],
+  covers: {},
+  goalWeek: '',
+  unlocked: [],
+  claimed: [],
+  counts: {},
+  starDays: {},
+  starKeys: [],
 }
 
 export const DEFAULT_MEMORY: Memory = {
@@ -148,56 +199,21 @@ export const DEFAULT_MEMORY: Memory = {
   signals: { voice: 0, video: 0, text: 0, hints: 0, photos: 0, asked: 0 },
   subjects: {},
   topics: [],
+  skills: {},
+  tags: {},
+  review: [],
+  taught: {},
+  read: {},
   insight: '',
   insightAt: 0,
 }
 
-// مفتاح جيميني: بيضل بالذاكرة أثناء التشغيل، ومشفّر على الجهاز (vault.ts).
-const GEMINI_BLOB_KEY = 'mila.secret.gemini.v1'
-let geminiKeyMem = ''
-
-async function persistGeminiKey(key: string): Promise<boolean> {
-  try {
-    if (!key) {
-      localStorage.removeItem(GEMINI_BLOB_KEY)
-      return true
-    }
-    localStorage.setItem(GEMINI_BLOB_KEY, await encryptSecret(key))
-    return true
-  } catch {
-    return false
-  }
-}
-
-/** لازم يتنده قبل ما التطبيق يرسم: بيفك تشفير المفتاح، وبينقل أي مفتاح قديم نص واضح للتشفير. */
-export async function initSecrets(): Promise<void> {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY)
-    const parsed = raw ? (JSON.parse(raw) as Partial<ParentData>) : null
-    const legacy = parsed && typeof parsed.geminiKey === 'string' ? parsed.geminiKey.trim() : ''
-    if (parsed && legacy) {
-      geminiKeyMem = legacy
-      if (await persistGeminiKey(legacy)) {
-        const cleaned: Partial<ParentData> = { ...parsed }
-        delete cleaned.geminiKey
-        write(SETTINGS_KEY, cleaned)
-      }
-      return
-    }
-    const blob = localStorage.getItem(GEMINI_BLOB_KEY)
-    if (blob) geminiKeyMem = await decryptSecret(blob)
-  } catch {
-    // مفتاح تالف أو IndexedDB مقفول: منكمل بدون مفتاح، وولي الأمر بقدر يعيد إدخاله.
-    geminiKeyMem = ''
-  }
-}
-
-function read<T>(key: string, fallback: T): T {
+function read<T extends object>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return fallback
     const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return fallback
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return fallback
     return { ...fallback, ...(parsed as T) }
   } catch {
     return fallback
@@ -223,138 +239,107 @@ function write(key: string, value: unknown): void {
   }
 }
 
-/** قائمة الطلاب على الجهاز (بالترتيب). */
-export function listProfiles(): ProfileId[] {
+/** أول تشغيل بالنسخة الجديدة: بننقل ليلي/روي وبياناتهم لقائمة الطلاب، ورقم الأهل لحقل مؤقت. */
+function migrate(): void {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STUDENTS_KEY) ?? 'null')
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string' && x !== '') : []
-  } catch {
-    return []
-  }
-}
-
-function saveProfiles(ids: ProfileId[]): void {
-  write(STUDENTS_KEY, ids)
-}
-
-/** أول ما يشتغل هالإصدار: بننقل بيانات النسخة القديمة لحساب الطالب الحالي. */
-function migrateProfiles(): void {
-  try {
-    if (localStorage.getItem(MIGRATED_KEY)) return
-    const raw = localStorage.getItem(SETTINGS_KEY)
-    const old = raw ? (JSON.parse(raw) as Partial<Settings>) : null
-    if (old) {
-      const profile: ProfileId = old.profile === 'roy' || old.gender === 'm' ? 'roy' : 'lily'
-      const base = LEGACY_STUDENT[profile as 'lily' | 'roy']
-      if (!localStorage.getItem(STUDENT_KEY(profile))) {
-        write(STUDENT_KEY(profile), {
-          childName: typeof old.childName === 'string' && old.childName.trim() !== '' ? old.childName : base.childName,
-          assistantName: base.assistantName,
-          grade: typeof old.grade === 'string' && old.grade !== '' ? old.grade : base.grade,
-          gender: old.gender === 'm' ? 'm' : 'f',
-          voice: typeof old.voice === 'string' && old.voice !== '' ? old.voice : base.voice,
-        })
-      }
-      for (const base of [PROGRESS_KEY, BOOKS_KEY, LESSONS_KEY, MEMORY_KEY]) {
-        const source = localStorage.getItem(base)
-        if (source && !localStorage.getItem(dataKey(base, profile))) {
-          localStorage.setItem(dataKey(base, profile), source)
-        }
-      }
-      write(SETTINGS_KEY, {
-        parentPin: typeof old.parentPin === 'string' ? old.parentPin : '',
-        geminiKey: typeof old.geminiKey === 'string' ? old.geminiKey : '',
-        profile,
+    if (localStorage.getItem(STUDENTS_KEY) !== null) return
+    const students: Student[] = []
+    for (const id of ['lily', 'roy']) {
+      const raw = localStorage.getItem(`mila.student.v1.${id}`)
+      if (!raw) continue
+      const s = JSON.parse(raw) as Partial<{ childName: string; grade: string; gender: Gender; voice: string }>
+      const gender: Gender = s.gender === 'm' ? 'm' : 'f'
+      const comp: CompId = gender === 'm' ? 'buddy' : 'yasmina'
+      students.push({
+        id,
+        name: typeof s.childName === 'string' && s.childName.trim() !== '' ? s.childName.trim() : id === 'roy' ? 'روي' : 'ليلي',
+        grade: typeof s.grade === 'string' && s.grade !== '' ? s.grade : 'الصف الخامس',
+        gender,
+        av: id,
+        comp,
+        skin: 'notebook',
+        acc: {},
+        voice: typeof s.voice === 'string' && s.voice !== '' ? s.voice : COMPS[comp].voice,
+        limitMin: 0,
+        goal: 3,
+        canEdit: false,
+        starCap: 3,
       })
-      const legacyIds = (['lily', 'roy'] as const).filter((id) => localStorage.getItem(STUDENT_KEY(id)))
-      saveProfiles(legacyIds.length > 0 ? legacyIds : [profile])
     }
-    localStorage.setItem(MIGRATED_KEY, '1')
+    localStorage.setItem(STUDENTS_KEY, JSON.stringify(students))
+    const oldRaw = localStorage.getItem(OLD_SETTINGS)
+    if (oldRaw && localStorage.getItem(PARENT_KEY) === null) {
+      const old = JSON.parse(oldRaw) as Partial<{ parentPin: string; geminiKey: string; profile: string }>
+      write(PARENT_KEY, {
+        ...DEFAULT_PARENT,
+        legacyPin: typeof old.parentPin === 'string' ? old.parentPin : '',
+        geminiKey: typeof old.geminiKey === 'string' ? old.geminiKey : '',
+      })
+      if (localStorage.getItem(DEVICE_KEY) === null && students.length > 0) {
+        const active = old.profile === 'roy' && students.some((s) => s.id === 'roy') ? 'roy' : students[0].id
+        write(DEVICE_KEY, { mode: 'student', active })
+      }
+    }
   } catch {
-    // إذا فشل النقل منكمل بالحساب الافتراضي.
+    // إذا فشل النقل منكمل بقائمة فاضية ومنطلب تحضير جديد.
   }
 }
 
-/** الحساب المفتوح حاليًا (من إعدادات ولي الأمر). */
-export function activeProfile(): ProfileId {
-  migrateProfiles()
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<ParentData>
-      if (typeof parsed.profile === 'string' && parsed.profile !== '') return parsed.profile
-    }
-  } catch {
-    // إعدادات تالفة: منرجع أول طالب.
-  }
-  return listProfiles()[0] ?? 'lily'
+export const loadStudents = (): Student[] => {
+  migrate()
+  return readList<Student>(STUDENTS_KEY).map((s) => ({
+    ...s,
+    acc: s.acc ?? {},
+    skin: s.skin ?? 'notebook',
+    comp: s.comp ?? 'buddy',
+    limitMin: typeof s.limitMin === 'number' ? s.limitMin : 0,
+    goal: typeof s.goal === 'number' ? s.goal : 3,
+    canEdit: s.canEdit === true,
+    starCap: typeof s.starCap === 'number' ? s.starCap : 3,
+    voice: s.voice || COMPS[s.comp ?? 'buddy'].voice,
+  }))
 }
+export const saveStudents = (list: Student[]): void => write(STUDENTS_KEY, list)
 
-export const loadSettings = (profile: ProfileId = activeProfile()): Settings => {
-  migrateProfiles()
-  const parent = read<ParentData>(SETTINGS_KEY, { parentPin: '', profile })
-  const student = read<Student>(STUDENT_KEY(profile), fallbackStudent(profile))
+export const loadParent = (): ParentData => {
+  migrate()
+  return read<ParentData>(PARENT_KEY, { ...DEFAULT_PARENT })
+}
+export const saveParent = (p: ParentData): void => write(PARENT_KEY, p)
+
+export const loadDevice = (): Device => {
+  migrate()
+  return read<Device>(DEVICE_KEY, { mode: '', active: '' })
+}
+export const saveDevice = (d: Device): void => write(DEVICE_KEY, d)
+
+export const loadProgress = (id: string): Progress => {
+  const p = read<Progress>(dataKey(PROGRESS_KEY, id), { ...DEFAULT_PROGRESS })
   return {
-    ...student,
-    profile,
-    parentPin: typeof parent.parentPin === 'string' ? parent.parentPin : '',
-    geminiKey: geminiKeyMem,
+    ...DEFAULT_PROGRESS,
+    ...p,
+    days: Array.isArray(p.days) ? p.days : [],
+    stickers: Array.isArray(p.stickers) && p.stickers.length > 0 ? p.stickers : ['star'],
+    secByDay: p.secByDay ?? {},
+    lessonsByDay: p.lessonsByDay ?? {},
+    covers: p.covers ?? {},
+    unlocked: Array.isArray(p.unlocked) ? p.unlocked : [],
+    claimed: Array.isArray(p.claimed) ? p.claimed : [],
+    counts: p.counts ?? {},
+    starDays: p.starDays ?? {},
+    starKeys: Array.isArray(p.starKeys) ? p.starKeys : [],
   }
 }
+export const saveProgress = (id: string, p: Progress): void => write(dataKey(PROGRESS_KEY, id), p)
 
-export const saveSettings = (s: Settings): void => {
-  write(STUDENT_KEY(s.profile), {
-    childName: s.childName,
-    assistantName: s.assistantName,
-    grade: s.grade,
-    gender: s.gender,
-    voice: s.voice,
-  })
-  const ids = listProfiles()
-  if (!ids.includes(s.profile)) saveProfiles([...ids, s.profile].slice(0, MAX_STUDENTS))
-  write(SETTINGS_KEY, { parentPin: s.parentPin, profile: s.profile })
-  geminiKeyMem = s.geminiKey
-  void persistGeminiKey(s.geminiKey)
-}
+export const loadBooks = (id: string): Book[] => readList<Book>(dataKey(BOOKS_KEY, id))
+export const saveBooks = (id: string, b: Book[]): void => write(dataKey(BOOKS_KEY, id), b.slice(0, 60))
 
-/** بيضيف طالب جديد (اسم + جنس + شخصية مساعدة). بيرجّع معرّفه، أو null إذا وصلنا الحد. */
-export function createStudent(input: {
-  childName: string
-  assistantName: string
-  grade: string
-  gender: Gender
-  voice: string
-}): ProfileId | null {
-  const ids = listProfiles()
-  if (ids.length >= MAX_STUDENTS) return null
-  const id = uid()
-  write(STUDENT_KEY(id), {
-    childName: input.childName.trim(),
-    assistantName: input.assistantName.trim(),
-    grade: input.grade,
-    gender: input.gender,
-    voice: input.voice,
-  })
-  saveProfiles([...ids, id])
-  return id
-}
+export const loadLessons = (id: string): Lesson[] => readList<Lesson>(dataKey(LESSONS_KEY, id))
+export const saveLessons = (id: string, l: Lesson[]): void => write(dataKey(LESSONS_KEY, id), l.slice(0, 300))
 
-export const loadProgress = (profile: ProfileId = activeProfile()): Progress =>
-  read<Progress>(dataKey(PROGRESS_KEY, profile), { stars: 0, lessonsDone: 0, days: [] })
-export const saveProgress = (p: Progress, profile: ProfileId = activeProfile()): void =>
-  write(dataKey(PROGRESS_KEY, profile), p)
-
-export const loadBooks = (profile: ProfileId = activeProfile()): Book[] => readList<Book>(dataKey(BOOKS_KEY, profile))
-export const saveBooks = (b: Book[], profile: ProfileId = activeProfile()): void =>
-  write(dataKey(BOOKS_KEY, profile), b.slice(0, 60))
-
-export const loadLessons = (profile: ProfileId = activeProfile()): Lesson[] =>
-  readList<Lesson>(dataKey(LESSONS_KEY, profile))
-export const saveLessons = (l: Lesson[], profile: ProfileId = activeProfile()): void =>
-  write(dataKey(LESSONS_KEY, profile), l.slice(0, 300))
-
-export const loadMemory = (profile: ProfileId = activeProfile()): Memory => {
-  const m = read<Memory>(dataKey(MEMORY_KEY, profile), { ...DEFAULT_MEMORY })
+export const loadMemory = (id: string): Memory => {
+  const m = read<Memory>(dataKey(MEMORY_KEY, id), { ...DEFAULT_MEMORY })
   return {
     ...DEFAULT_MEMORY,
     ...m,
@@ -362,10 +347,26 @@ export const loadMemory = (profile: ProfileId = activeProfile()): Memory => {
     subjects: m.subjects ?? {},
     topics: Array.isArray(m.topics) ? m.topics : [],
     interests: Array.isArray(m.interests) ? m.interests : [],
+    skills: m.skills ?? {},
+    tags: m.tags ?? {},
+    review: Array.isArray(m.review) ? m.review : [],
+    taught: m.taught ?? {},
+    read: m.read ?? {},
   }
 }
-export const saveMemory = (m: Memory, profile: ProfileId = activeProfile()): void =>
-  write(dataKey(MEMORY_KEY, profile), m)
+export const saveMemory = (id: string, m: Memory): void => write(dataKey(MEMORY_KEY, id), m)
+
+export const loadHomework = (id: string): Homework[] => readList<Homework>(dataKey(HW_KEY, id))
+export const saveHomework = (id: string, h: Homework[]): void => write(dataKey(HW_KEY, id), h.slice(0, 20))
+
+/** بيمسح كل بيانات طالب من الجهاز. */
+export function removeStudentData(id: string): void {
+  try {
+    for (const base of [PROGRESS_KEY, BOOKS_KEY, LESSONS_KEY, MEMORY_KEY, HW_KEY]) localStorage.removeItem(dataKey(base, id))
+  } catch {
+    // ما في داعي نزعّل المستخدم.
+  }
+}
 
 export function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
@@ -375,13 +376,39 @@ export function todayKey(d: Date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** نجوم لكل درس + يوم مسجّل لحساب السلسلة. */
-export function completeLesson(p: Progress, starsEarned = 1): Progress {
+export function dayKeyAgo(offset: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offset)
+  return todayKey(d)
+}
+
+function pruneDays<T>(rec: Record<string, T>): Record<string, T> {
+  const keep = new Set<string>()
+  for (let i = 0; i < 30; i += 1) keep.add(dayKeyAgo(-i))
+  const out: Record<string, T> = {}
+  for (const k of Object.keys(rec)) if (keep.has(k)) out[k] = rec[k]
+  return out
+}
+
+/** ثواني دراسة جديدة لليوم. */
+export function addSeconds(p: Progress, sec: number): Progress {
+  if (sec <= 0) return p
+  const k = todayKey()
+  return { ...p, secByDay: pruneDays({ ...p.secByDay, [k]: (p.secByDay[k] ?? 0) + sec }) }
+}
+
+export const secondsToday = (p: Progress): number => p.secByDay[todayKey()] ?? 0
+
+/** نجوم لكل درس + يوم مسجّل لحساب السلسلة + ستيكر جديد إذا في. */
+export function completeLesson(p: Progress, starsEarned: number, sticker: string | null): Progress {
   const day = todayKey()
   return {
+    ...p,
     stars: p.stars + starsEarned,
     lessonsDone: p.lessonsDone + 1,
-    days: p.days.includes(day) ? p.days : [...p.days, day],
+    days: p.days.includes(day) ? p.days : [...p.days, day].slice(-120),
+    lessonsByDay: pruneDays({ ...p.lessonsByDay, [day]: (p.lessonsByDay[day] ?? 0) + 1 }),
+    stickers: sticker && !p.stickers.includes(sticker) ? [...p.stickers, sticker] : p.stickers,
   }
 }
 
@@ -403,7 +430,17 @@ export function bumpSignal(m: Memory, kind: SignalKind): Memory {
   return { ...m, signals: { ...m.signals, [kind]: m.signals[kind] + 1 } }
 }
 
-/** بعد ما يحلّ الدرس: بنسجّل المادة، النتيجة، وموضوع الدرس بذاكرة الطفل. */
+/** جواب سؤال وحد: بنسجّل المهارة (عنوان الدرس) ونوع الغلط إذا غلط. */
+export function recordAnswer(m: Memory, skill: string, ok: boolean, tag: string): Memory {
+  const prev = m.skills[skill] ?? { ok: 0, bad: 0 }
+  const skills = { ...m.skills, [skill]: { ok: prev.ok + (ok ? 1 : 0), bad: prev.bad + (ok ? 0 : 1) } }
+  const keys = Object.keys(skills)
+  if (keys.length > 60) delete skills[keys[0]]
+  const tags = ok || tag === '' ? m.tags : { ...m.tags, [tag]: (m.tags[tag] ?? 0) + 1 }
+  return { ...m, skills, tags }
+}
+
+/** بعد ما يخلّص الدرس: بنسجّل المادة، النتيجة، وموضوع الدرس بذاكرة الطالب. */
 export function recordResult(m: Memory, lesson: Lesson, right: number, total: number): Memory {
   const prev = m.subjects[lesson.subject] ?? { done: 0, right: 0, total: 0 }
   const topics = [lesson.title, ...m.topics.filter((t) => t !== lesson.title)].slice(0, 40)
@@ -423,20 +460,19 @@ export interface StyleRead {
   line: string
 }
 
-/** أسلوب التعلّم من إشارات الاستخدام (صوت/فيديو/قراءة) — كلها محلية. */
 export function learningStyle(m: Memory): StyleRead {
   const s = m.signals
   const max = Math.max(s.voice, s.video, s.text)
   if (max === 0) {
-    return { key: 'none', label: 'ما بينعرف بعد', line: 'بعد كم درس منعرف شو الطريقة اللي بتوصل معه أسرع.' }
+    return { key: 'none', label: 'ما بينعرف بعد', line: 'بعد كم درس منعرف شو الطريقة اللي بتوصل معو أسرع.' }
   }
   if (s.voice === max && s.voice > s.text) {
-    return { key: 'voice', label: 'بيسمع أحسن', line: 'بيحب يسمع الشرح — شغّل الصوت معه، وخليه يعيد بالصوت.' }
+    return { key: 'voice', label: 'بيسمع أحسن', line: 'بيحب يسمع الشرح — شغّل الصوت معو، وخليه يعيد بالصوت.' }
   }
   if (s.video === max && s.video > s.text) {
-    return { key: 'video', label: 'بيحب الفيديو', line: 'الفيديو بيمسكه أكتر — فيديو قصير قبل التمرين بيعمل فرق.' }
+    return { key: 'video', label: 'بيحب الفيديو', line: 'الفيديو بيمسكو أكتر — فيديو قصير قبل التمرين بيعمل فرق.' }
   }
-  return { key: 'text', label: 'بيقرا وبيكتب', line: 'بيحب يقرا ويكتب — خليه يكتب الحل بإيده بعد الشرح.' }
+  return { key: 'text', label: 'بيقرا ويكتب', line: 'بيحب يقرا ويكتب — خليه يكتب الحل بإيدو بعد الشرح.' }
 }
 
 export interface SubjectRead {
@@ -451,98 +487,168 @@ export function subjectReads(m: Memory): SubjectRead[] {
   return Object.entries(m.subjects)
     .map(([subject, s]) => {
       const accuracy = s.total > 0 ? Math.round((s.right / s.total) * 100) : 0
-      const tone: SubjectRead['tone'] =
-        s.total === 0 ? 'none' : accuracy >= 80 ? 'good' : accuracy >= 50 ? 'mid' : 'low'
-      const label =
-        tone === 'good' ? 'قوي فيه' : tone === 'mid' ? 'عم يتحسّن' : tone === 'low' ? 'بدو تدريب' : 'ما جرّب بعد'
+      const tone: SubjectRead['tone'] = s.total === 0 ? 'none' : accuracy >= 80 ? 'good' : accuracy >= 50 ? 'mid' : 'low'
+      const label = tone === 'good' ? 'قوي فيه' : tone === 'mid' ? 'عم يتحسّن' : tone === 'low' ? 'بدو تدريب' : 'ما جرّب بعد'
       return { subject, done: s.done, accuracy, label, tone }
     })
     .sort((a, b) => b.done - a.done)
 }
 
-/** سطر موجز بيروح مع كل طلب لجيميني حتى يخصّص الشرح للطفل. */
+/** سطر موجز بيروح مع كل طلب لجيميني حتى يخصّص الشرح للطالب. */
 export function memoryBrief(m: Memory): string {
   const parts: string[] = []
   if (m.interests.length > 0) parts.push(`بيهتم بـ: ${m.interests.join('، ')}`)
   const style = learningStyle(m)
-  if (style.key !== 'none') parts.push(`أسلوب تعلّمه: ${style.line}`)
-  const strong = subjectReads(m).filter((s) => s.tone === 'good').map((s) => s.subject)
-  const weak = subjectReads(m).filter((s) => s.tone === 'low').map((s) => s.subject)
+  if (style.key !== 'none') parts.push(`أسلوب تعلّمو: ${style.line}`)
+  const reads = subjectReads(m)
+  const strong = reads.filter((s) => s.tone === 'good').map((s) => s.subject)
+  const weak = reads.filter((s) => s.tone === 'low').map((s) => s.subject)
   if (strong.length > 0) parts.push(`قوي بـ: ${strong.join('، ')}`)
   if (weak.length > 0) parts.push(`بيحتاج دعم بـ: ${weak.join('، ')}`)
+  const topTags = Object.entries(m.tags)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([t]) => t)
+  if (topTags.length > 0) parts.push(`أغلاط بتتكرر: ${topTags.join('، ')}`)
   if (m.topics.length > 0) parts.push(`آخر مواضيع: ${m.topics.slice(0, 6).join('، ')}`)
   if (m.notes.trim() !== '') parts.push(`ملاحظة ولي الأمر: ${m.notes.trim()}`)
   return parts.join(' | ')
 }
 
-export function weeklyReport(m: Memory): string {
-  const parts: string[] = []
-  if (m.interests.length > 0) parts.push(`يهتم بـ: ${m.interests.join("، ")}`)
-  const style = learningStyle(m)
-  if (style.key !== "none") parts.push(`أسلوب التعلم: ${style.label}`)
-  const strong = subjectReads(m).filter((s) => s.tone === "good").map((s) => s.subject)
-  const weak = subjectReads(m).filter((s) => s.tone === "low").map((s) => s.subject)
-  if (strong.length > 0) parts.push(`قوي فيه: ${strong.join("، ")}`)
-  if (weak.length > 0) parts.push(`يحتاج دعم: ${weak.join("، ")}`)
-  if (m.topics.length > 0) parts.push(`آخر مواضيع: ${m.topics.slice(0, 6).join("، ")}`)
-  if (m.notes.trim() !== "") parts.push(`ملاحظة ولي الأمر: ${m.notes.trim()}`)
-  return parts.join(" \n ")
+export interface WeekDay {
+  key: string
+  sec: number
+  lessons: number
+  today: boolean
 }
 
-/**
- * نسخة احتياطية لبيانات الطالب (دروس، كتب، ذاكرة، نجوم).
- * ملاحظة: ما بتحتوي رقم الأهل ولا مفتاح جيميني — هدول بيضلوا على الجهاز.
- * ملاحظة: صور الدروس بتنضاف من ParentView (من IndexedDB)، وهون بس النصوص والبيانات.
- */
-export function exportData(profile: ProfileId): string {
-  const parse = (key: string): unknown => {
-    const raw = localStorage.getItem(key)
-    if (!raw) return null
-    try {
-      return JSON.parse(raw)
-    } catch {
-      return null
-    }
+/** آخر ٧ أيام من الأقدم للأحدث. */
+export function weekDays(p: Progress): WeekDay[] {
+  const out: WeekDay[] = []
+  for (let o = -6; o <= 0; o += 1) {
+    const key = dayKeyAgo(o)
+    out.push({ key, sec: p.secByDay[key] ?? 0, lessons: p.lessonsByDay[key] ?? 0, today: o === 0 })
   }
-  try {
-    const data = {
-      app: 'mila',
-      version: BACKUP_VERSION,
-      profile,
-      exportedAt: new Date().toISOString(),
-      student: parse(STUDENT_KEY(profile)),
-      progress: parse(dataKey(PROGRESS_KEY, profile)),
-      books: parse(dataKey(BOOKS_KEY, profile)) ?? [],
-      lessons: parse(dataKey(LESSONS_KEY, profile)) ?? [],
-      memory: parse(dataKey(MEMORY_KEY, profile)) ?? DEFAULT_MEMORY,
-    }
-    return JSON.stringify(data)
-  } catch {
-    return '{}'
-  }
+  return out
 }
 
-/**
- * استيراد نسخة احتياطية للطالب المفتوح حاليًا.
- * أي إعدادات ولي الأمر داخل الملف بيتجاهلها: الاستعادة ما بتقدر تغيّر رقم الأهل أو المفتاح.
- */
-export function importData(data: string, profile: ProfileId): boolean {
-  try {
-    const parsed: unknown = JSON.parse(data)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false
-    const b = parsed as Record<string, unknown>
-    const known = ['progress', 'books', 'lessons', 'memory', 'student']
-    if (!known.some((k) => k in b)) return false
+export function reportText(s: Student, p: Progress, m: Memory): string {
+  const c = COMPS[s.comp] ?? COMPS.buddy
+  const wk = weekDays(p)
+  const act = wk.filter((x) => x.sec > 0 || x.lessons > 0).length
+  const mins = Math.round(wk.reduce((a, x) => a + x.sec, 0) / 60)
+  const les = wk.reduce((a, x) => a + x.lessons, 0)
+  const h = (m: string, f: string): string => (s.gender === 'f' ? f : m)
+  let out = `مرحبا! أنا ${c.name}، رفيق ${s.name} بالدراسة. هي ملخص الأسبوع:\n`
+  if (act === 0) {
+    return `${out}هالأسبوع ${h('ما فتح', 'ما فتحت')} ${s.name} الدروس. ما في مشكلة، عشر دقايق بتفرق. جرّبوا تقعدوا ${h('معو', 'معها')} وتخلّوني أبلّش ${h('معو', 'معها')}.`
+  }
+  const cnt = les === 0 ? 'ولا درس كامل' : les === 1 ? 'درس واحد' : les === 2 ? 'درسين' : `${les} دروس`
+  out += `${s.name} ${h('درس', 'درست')} ${act} ${act === 1 ? 'يوم' : 'أيام'}، و${h('قضّى', 'قضّت')} ${mins} دقيقة، و${h('خلّص', 'خلّصت')} ${cnt}.\n`
+  const sk = Object.entries(m.skills)
+    .map(([n, v]) => ({ n, r: v.ok / (v.ok + v.bad || 1), t: v.ok + v.bad }))
+    .filter((x) => x.t >= 3)
+  const strong = sk.filter((x) => x.r >= 0.75).sort((a, b) => b.r - a.r)[0]
+  const weak = sk.filter((x) => x.r < 0.6).sort((a, b) => a.r - b.r)[0]
+  if (strong) out += `أقوى شي ${h('عندو', 'عندها')}: ${strong.n} (${Math.round(strong.r * 100)}٪ من الأجوبة صح من أول مرة).\n`
+  if (weak) {
+    const tag = Object.entries(m.tags).sort((a, b) => b[1] - a[1])[0]
+    out += `${h('بدّو', 'بدّها')} دعم بـ«${weak.n}».${tag ? ` الغلطة اللي بتتكرر: ${tag[0]}.` : ''}\nاقتراح: خلّوا ${s.name} يشرحلكم هالنقطة ${h('بكلامو', 'بكلامها')}، هيك بتتثبّت.`
+  }
+  return out.trim()
+}
 
-    if (b.progress && typeof b.progress === 'object') write(dataKey(PROGRESS_KEY, profile), b.progress)
-    if (Array.isArray(b.books)) write(dataKey(BOOKS_KEY, profile), b.books.slice(0, 60))
-    if (Array.isArray(b.lessons)) write(dataKey(LESSONS_KEY, profile), b.lessons.slice(0, 300))
-    if (b.memory && typeof b.memory === 'object') {
-      write(dataKey(MEMORY_KEY, profile), { ...DEFAULT_MEMORY, ...(b.memory as Partial<Memory>) })
-    }
-    if (b.student && typeof b.student === 'object') write(STUDENT_KEY(profile), b.student)
-    return true
-  } catch {
-    return false
+/** سؤال غلط فيه الطالب، بيرجع بالمراجعة المتباعدة. */
+export interface ReviewItem {
+  id: string
+  lessonId: string
+  q: string
+  options: string[]
+  answer: number
+  why: string
+  /** المرحلة: ٠ بعد يوم، ١ بعد ٣ أيام، ٢ بعد ٧، ٣ بعد ١٤. */
+  box: number
+  due: number
+}
+
+export type ReviewSeed = Pick<ReviewItem, 'lessonId' | 'q' | 'options' | 'answer' | 'why'>
+
+const DAY_MS = 86400000
+const GAPS = [1, 3, 7, 14]
+
+export function addReview(m: Memory, s: ReviewSeed): Memory {
+  const id = `${s.lessonId}|${s.q.slice(0, 60)}`
+  const rest = m.review.filter((r) => r.id !== id)
+  return { ...m, review: [{ ...s, id, box: 0, due: Date.now() + DAY_MS }, ...rest].slice(0, 60) }
+}
+
+export const dueItems = (m: Memory, now: number = Date.now()): ReviewItem[] =>
+  m.review.filter((r) => r.due <= now).sort((a, b) => a.due - b.due)
+
+/** جواب مراجعة: الصح بيبعّد الموعد، والغلط بيرجّع السؤال لبكرا. */
+export function gradeReview(m: Memory, id: string, ok: boolean): Memory {
+  const cur = m.review.find((r) => r.id === id)
+  if (!cur) return m
+  if (!ok) return { ...m, review: m.review.map((r) => (r.id === id ? { ...r, box: 0, due: Date.now() + GAPS[0] * DAY_MS } : r)) }
+  if (cur.box + 1 >= GAPS.length) return { ...m, review: m.review.filter((r) => r.id !== id) }
+  return { ...m, review: m.review.map((r) => (r.id === id ? { ...r, box: r.box + 1, due: Date.now() + GAPS[r.box + 1] * DAY_MS } : r)) }
+}
+
+/** بداية الأسبوع (السبت) كمفتاح يوم. */
+export function weekStartKey(d: Date = new Date()): string {
+  const x = new Date(d)
+  x.setDate(x.getDate() - ((x.getDay() + 1) % 7))
+  return todayKey(x)
+}
+
+export function weekLessons(p: Progress): number {
+  const start = weekStartKey()
+  let n = 0
+  for (const [k, v] of Object.entries(p.lessonsByDay)) if (k >= start) n += v
+  return n
+}
+export const starLessonsToday = (p: Progress): number => p.starDays[todayKey()] ?? 0
+
+/** مفتاح الدرس للنجوم: الصفحة المصوّرة نفسها بتاخد نجوم مرة وحدة بس. */
+export const lessonStarKey = (l: Lesson): string => (l.imageId !== '' ? `img:${l.imageId}` : `lesson:${l.id}`)
+
+export function addCount(p: Progress, key: string, n = 1): Progress {
+  return { ...p, counts: { ...p.counts, [key]: (p.counts[key] ?? 0) + n } }
+}
+
+export function markStarLesson(p: Progress, key: string): Progress {
+  const day = todayKey()
+  return {
+    ...p,
+    starDays: pruneDays({ ...p.starDays, [day]: (p.starDays[day] ?? 0) + 1 }),
+    starKeys: [...p.starKeys, key].slice(-300),
+  }
+}
+export function weekStarLessons(p: Progress): number {
+  const start = weekStartKey()
+  let n = 0
+  for (const [k, v] of Object.entries(p.starDays)) if (k >= start) n += v
+  return n
+}
+export interface TodaySummary {
+  day: string
+  /** عناوين الدروس اللي خلّصها اليوم. */
+  lessons: string[]
+  minutes: number
+  /** كم مرة علّم رفيقو بنجاح اليوم. */
+  teach: number
+  /** كم قراءة ناجحة اليوم. */
+  read: number
+}
+
+export function todaySummary(lessons: Lesson[], memory: Memory, progress: Progress): TodaySummary {
+  const day = todayKey()
+  const start = new Date(`${day}T00:00:00`).getTime()
+  return {
+    day,
+    lessons: lessons.filter((l) => l.done && (l.doneAt ?? 0) >= start).map((l) => l.title).slice(0, 12),
+    minutes: Math.round((progress.secByDay[day] ?? 0) / 60),
+    teach: Object.values(memory.taught).filter((d) => d === day).length,
+    read: Object.values(memory.read).filter((d) => d === day).length,
   }
 }

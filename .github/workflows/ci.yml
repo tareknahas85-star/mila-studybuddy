@@ -24,7 +24,7 @@ jobs:
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
-          name: mila-web
+          name: studybuddy-web
           path: dist
           if-no-files-found: error
 
@@ -45,17 +45,7 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
-      - name: تجهيز الأيقونات من SVG
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq librsvg2-bin
-          rsvg-convert -w 1024 -h 1024 resources/icon-source.svg -o resources/icon.png
       - run: npm ci
-      - name: توليد أيقونات أندرويد
-        run: |
-          npx @capacitor/assets generate --android --iconBackgroundColor "#fdf6e9" --assetPath resources
-          # الأيقونة التكيفية (adaptive) محفوظة بالمسارات الصحيحة في المستودع: ما نسمح بالكتابة عليها.
-          git checkout -- android/app/src/main/res/mipmap-anydpi-v26
       - run: npm run build
       - run: npx cap sync android
       - name: فحص مفتاح التوقيع
@@ -88,17 +78,21 @@ jobs:
           else
             ./gradlew assembleDebug --no-daemon --stacktrace
           fi
-      - name: تجهيز الملف
+      - name: تجهيز الملف وفحصو
         run: |
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk mila.apk
+            cp android/app/build/outputs/apk/release/app-release.apk studybuddy.apk
           else
-            cp android/app/build/outputs/apk/debug/app-debug.apk mila.apk
+            echo "::warning::ما في مفتاح توقيع: الـAPK موقّع بمفتاح debug مؤقت وما بينحدّث فوق نسخة تانية."
+            cp android/app/build/outputs/apk/debug/app-debug.apk studybuddy.apk
           fi
+          BT="$ANDROID_HOME/build-tools/36.0.0"
+          "$BT/aapt2" dump badging studybuddy.apk | head -1
+          "$BT/apksigner" verify --print-certs studybuddy.apk | head -3
       - uses: actions/upload-artifact@v4
         with:
-          name: mila-apk
-          path: mila.apk
+          name: studybuddy-apk
+          path: studybuddy.apk
           if-no-files-found: error
 
   release:
@@ -112,7 +106,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: mila-apk
+          name: studybuddy-apk
       - name: رفع الـ APK على الـ Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -120,10 +114,13 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           TAG="v$VERSION"
           FILE="studybuddy-$TAG.apk"
-          mv mila.apk "$FILE"
+          mv studybuddy.apk "$FILE"
+          NOTES="docs/release-notes/$TAG.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$FILE" --clobber
+          elif [ -f "$NOTES" ]; then
+            gh release create "$TAG" "$FILE" --title "StudyBuddy $TAG" --target "$GITHUB_SHA" --notes-file "$NOTES"
           else
             gh release create "$TAG" "$FILE" --title "StudyBuddy $TAG" --target "$GITHUB_SHA" \
-              --notes "نسخة جديدة من StudyBuddy. حمّل ملف APK من تحت وثبّتو على الموبايل."
+              --notes "نسخة جديدة من StudyBuddy. حمّل ملف APK من تحت وثبّتو على الموبايل. التحديث بيتثبّت فوق النسخة الحالية وبياناتك بتضل."
           fi
