@@ -62,7 +62,11 @@ jobs:
           KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # أي مسافة أو سطر زيادة بالأسرار (مثلاً CRLF من ويندوز) ما بتأثّر.
+          echo "$KEYSTORE_B64" | tr -d '\r\n ' | base64 -d > "$RUNNER_TEMP/release.jks"
+          KS_PASS=$(printf %s "$KS_PASS" | tr -d '\r\n')
+          KS_ALIAS=$(printf %s "$KS_ALIAS" | tr -d '\r\n')
+          KEY_PASS=$(printf %s "$KEY_PASS" | tr -d '\r\n')
           {
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks"
             echo "ANDROID_KEYSTORE_PASSWORD=$KS_PASS"
