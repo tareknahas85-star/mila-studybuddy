@@ -102,6 +102,20 @@ test('مقارنة النسخ للتحديث', () => {
   assert.ok(!update.isNewer('53.9.9', '54.0.0'))
 })
 
+test('اختيار آخر ريليس: بيتجاهل ريليسات الدليل والمسودات والنسخ بلا APK', () => {
+  const apk = (v: string) => [{ name: `studybuddy-${v}.apk`, browser_download_url: `https://x/${v}.apk` }]
+  const list = [
+    { tag_name: 'guide-v1.0.0', assets: [{ name: 'Guide.html', browser_download_url: 'https://x/g.html' }] },
+    { tag_name: 'v54.0.1', draft: true, assets: apk('v54.0.1') },
+    { tag_name: 'v55.0.0', prerelease: true, assets: apk('v55.0.0') },
+    { tag_name: 'v54.0.0', assets: apk('v54.0.0') },
+    { tag_name: 'v54.1.0', assets: [] },
+    { tag_name: 'v50.5.0', assets: apk('v50.5.0') },
+  ]
+  assert.equal(update.pickRelease(list)?.tag_name, 'v54.0.0')
+  assert.equal(update.pickRelease([{ tag_name: 'guide-v1.0.0', assets: apk('g') }]), null)
+})
+
 test('ملخص اليوم: بيعدّ دروس اليوم بس', () => {
   const now = Date.now()
   type L = Parameters<typeof store.todaySummary>[0][number]

@@ -1,7 +1,7 @@
 {
   "name": "studybuddy",
   "private": true,
-  "version": "54.0.0",
+  "version": "54.0.1",
   "type": "module",
   "description": "StudyBuddy — رفيق دراسة عربي للأطفال: دفتر، تعلّم سقراطي، وقراءة صور الصفحات.",
   "scripts": {

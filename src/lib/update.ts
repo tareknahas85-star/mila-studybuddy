@@ -60,6 +60,28 @@ function save(s: State): void {
   }
 }
 
+interface Rel {
+  tag_name?: string
+  body?: string
+  html_url?: string
+  draft?: boolean
+  prerelease?: boolean
+  assets?: Array<{ name?: string; browser_download_url?: string }>
+}
+
+/** أحدث ريليس حقيقي: رقم نسخة (v54.0.1) وفيه APK. بيتجاهل ريليسات الدليل أو المسودات (ما بنستعمل /latest عشانها). */
+export function pickRelease(list: Rel[]): Rel | null {
+  let best: Rel | null = null
+  for (const r of list) {
+    if (r.draft || r.prerelease) continue
+    const tag = typeof r.tag_name === 'string' ? r.tag_name : ''
+    if (!/^v?\d+(\.\d+){0,2}$/.test(tag)) continue
+    if (!(r.assets ?? []).some((a) => typeof a.name === 'string' && a.name.endsWith('.apk') && typeof a.browser_download_url === 'string')) continue
+    if (best === null || isNewer(tag, best.tag_name as string)) best = r
+  }
+  return best
+}
+
 /** إذا في نسخة أحدث وما انأجّلت: بترجّع معلوماتها. بيسأل GitHub مرة كل ١٢ ساعة، أو دايماً مع force. */
 export async function checkUpdate(force = false): Promise<{ ok: true; info: UpdateInfo | null } | { ok: false; error: string }> {
   const st = load()
@@ -68,10 +90,11 @@ export async function checkUpdate(force = false): Promise<{ ok: true; info: Upda
   try {
     const ctl = new AbortController()
     const timer = window.setTimeout(() => ctl.abort(), 9000)
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' }, signal: ctl.signal })
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=12`, { headers: { Accept: 'application/vnd.github+json' }, signal: ctl.signal })
     window.clearTimeout(timer)
     if (!res.ok) throw new Error(`http-${res.status}`)
-    const j = (await res.json()) as { tag_name?: string; body?: string; html_url?: string; assets?: Array<{ name?: string; browser_download_url?: string }> }
+    const all = (await res.json()) as unknown
+    const j: Rel = pickRelease(Array.isArray(all) ? (all as Rel[]) : []) ?? {}
     const tag = typeof j.tag_name === 'string' ? j.tag_name : ''
     const apk = (j.assets ?? []).find((a) => typeof a.name === 'string' && a.name.endsWith('.apk') && typeof a.browser_download_url === 'string')
     const newer = tag !== '' && !!apk && isNewer(tag, APP_VERSION)
